@@ -20,10 +20,10 @@ Instructions for AI assistants working with this repository.
    - After each step in the game, take a snapshot named for that step: `powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 01-menu`. The page lists the seven steps we used.
    - Compare all steps: `python compare_snapshots.py`. It prints, for each pair of steps, whether Plugins.txt was rewritten and which lines changed, and which ContentCatalog.txt entries changed.
    - Troubleshoot: add `-Verbose` to a snapshot command, or `--verbose` to the compare command.
-6. **Inputs:** a step name (letters, digits, dots, dashes and underscores; steps are compared in name order), and optionally `-OutDir <folder>` for the snapshot script or a folder argument for the compare script. Both default to `PluginsTxtTest` on the Desktop.
+6. **Inputs:** a step name (letters, digits, dots, dashes and underscores, with at least one letter or digit; start it with a number, because steps are compared in the order of that number), and optionally `-OutDir <folder>` for the snapshot script or a folder argument for the compare script. Both default to `PluginsTxtTest` on the user's Desktop (the real one, even when OneDrive has moved it). The compare script counts only folders that hold `info.txt` as steps.
 7. **Outputs:** one folder per step holding copies of `Plugins.txt`, `ContentCatalog.txt` and `StarfieldCustom.ini` plus `info.txt` (each file's modified time, size and SHA256, and whether the marker line is present). With `-AddMarker`, `Plugins.txt.backup` in the output folder. Logs: `snapshot.log` (with `-Verbose`) and `compare.log` (with `--verbose`) in the output folder.
 8. **Exit codes:**
-   - `PluginsTxtSnapshot.ps1`: 0 when the snapshot was taken (missing files are listed in `info.txt`); 1 when `-AddMarker` finds no Plugins.txt; 2 for a bad step name.
+   - `PluginsTxtSnapshot.ps1`: 0 when the snapshot was taken (files that are missing or couldn't be read are listed in `info.txt`); 1 when the output folder can't be created, or `-AddMarker` finds no Plugins.txt or can't back it up or mark it; 2 for a bad step name. Running `-AddMarker` again keeps the first backup and doesn't add a second marker.
    - `compare_snapshots.py`: 0 when it compared; 1 when the folder is missing or holds fewer than two steps; 2 for wrong arguments.
 9. **Limits:**
    - The scripts never touch the game folder, saves or mod files, and never upload anything. The only change they make is `-AddMarker`, which backs up Plugins.txt and then adds one comment line to it. The page fetches nothing.

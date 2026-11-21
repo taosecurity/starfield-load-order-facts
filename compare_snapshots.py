@@ -1,6 +1,7 @@
 """Compare the step folders made by PluginsTxtSnapshot.ps1.
 
-For each pair of steps in name order it reports:
+Each step is a folder holding info.txt. Steps are taken in the order of their number prefix (2-x before 10-x).
+For each pair of steps it reports:
   - whether Plugins.txt was rewritten (its modified time changed) and how its lines changed,
   - whether ContentCatalog.txt changed, field by field.
 
@@ -40,12 +41,43 @@ def mtime(step, name):
     return m.group(1) if m else None
 
 
+def desktop():
+    """The real Desktop folder (OneDrive can move it), as PluginsTxtSnapshot.ps1 finds it."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [("d1", wintypes.DWORD), ("d2", wintypes.WORD), ("d3", wintypes.WORD),
+                            ("d4", ctypes.c_ubyte * 8)]
+
+            fid = GUID(0xB4BFCC3A, 0xDB2C, 0x424C, (ctypes.c_ubyte * 8)(0xB0, 0x29, 0x7F, 0xE9, 0x9A, 0x87, 0xC6, 0x41))
+            path = ctypes.c_wchar_p()
+            if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(fid), 0, None, ctypes.byref(path)) == 0:
+                result = path.value
+                ctypes.windll.ole32.CoTaskMemFree(path)
+                if result:
+                    return Path(result)
+        except (OSError, AttributeError):
+            pass
+    return Path(os.path.expanduser("~")) / "Desktop"
+
+
+def step_key(p):
+    """Sort steps by their number prefix (2-x before 10-x), then by name."""
+    m = re.match(r"(\d+)", p.name)
+    return (int(m.group(1)) if m else float("inf"), p.name)
+
+
 def catalog_diff(pa, pb):
     try:
-        ja = json.loads(pa.read_text(encoding="utf-8"))
-        jb = json.loads(pb.read_text(encoding="utf-8"))
+        ja = json.loads(pa.read_text(encoding="utf-8-sig"))
+        jb = json.loads(pb.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as ex:
         return [f"    could not read as JSON ({ex}); compare the two files by hand"]
+    if not isinstance(ja, dict) or not isinstance(jb, dict):
+        return ["    not the expected JSON object; compare the two files by hand"]
     out = []
     for k in sorted(set(ja) | set(jb)):
         va, vb = ja.get(k), jb.get(k)
@@ -89,7 +121,7 @@ def compare(a, b):
 
 
 def main(argv):
-    desk = Path(os.path.expanduser("~")) / "Desktop" / "PluginsTxtTest"
+    desk = desktop() / "PluginsTxtTest"
     ap = argparse.ArgumentParser(description="Compare PluginsTxtSnapshot.ps1 step folders.")
     ap.add_argument("folder", nargs="?", default=str(desk), help="snapshot folder (default: %(default)s)")
     ap.add_argument("--verbose", action="store_true", help="also write compare.log in the folder")
@@ -99,7 +131,7 @@ def main(argv):
         print(f"compare_snapshots: folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.",
               file=sys.stderr)
         return 1
-    steps = sorted(p for p in root.iterdir() if p.is_dir())
+    steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / "info.txt").exists()), key=step_key)
     log(f"folder {root}: steps {[s.name for s in steps]}")
     if len(steps) < 2:
         print(f"compare_snapshots: {root} has {len(steps)} step folder(s); take at least two snapshots first.",

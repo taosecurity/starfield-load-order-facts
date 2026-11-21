@@ -163,7 +163,7 @@ blockquote{margin:0;padding:10px 14px;border-left:4px solid hsl(var(--h) 45% 55%
   <main>
     <div class="col">
       <header class="intro" id="top">
-        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:33 UTC</p>
+        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:37 UTC</p>
         <h1>Do Vortex mods and Creations really have separate load orders?</h1>
         <p class="lede">A Facebook comment claimed that Vortex mods load through the script extender, that Creations load when you load a save, and that this gives Starfield two load orders. We checked the claim twice: by reading the game's own code, and by watching Plugins.txt in the game step by step. This page shows every step, what each one found, and how you can repeat the test on your own PC.</p>
         <p class="byline">By <a href="https://github.com/taosecurity" target="_blank" rel="noopener">Richard Bejtlich</a>, <a href="https://www.youtube.com/@RichardBejtlich" target="_blank" rel="noopener">Richard Presents Starfield Essentials</a> on YouTube</p>
@@ -339,9 +339,11 @@ param(
   [string]$OutDir = (Join-Path ([Environment]::GetFolderPath(&#x27;Desktop&#x27;)) &#x27;PluginsTxtTest&#x27;)
 )
 $ErrorActionPreference = &#x27;Stop&#x27;
+$inv = [Globalization.CultureInfo]::InvariantCulture
+$timeFmt = &#x27;yyyy-MM-dd HH\:mm\:ss&#x27;   # literal colons on every regional setting (compare_snapshots.py reads them)
 
-if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27;) {
-  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: step name &#x27;$Step&#x27; can only use letters, digits, dots, dashes and underscores (for example 01-menu).&quot;)
+if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27; -or $Step -notmatch &#x27;[A-Za-z0-9]&#x27;) {
+  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: step name &#x27;$Step&#x27; must use letters, digits, dots, dashes and underscores, with at least one letter or digit (for example 01-menu).&quot;)
   exit 2
 }
 
@@ -357,13 +359,23 @@ $marker  = &#x27;# PluginsTxtSnapshot marker - safe to delete&#x27;
 $out     = Join-Path $OutDir $Step
 $log     = Join-Path $OutDir &#x27;snapshot.log&#x27;
 
-New-Item -ItemType Directory -Force $out | Out-Null
+try {
+  New-Item -ItemType Directory -Force $out | Out-Null
+} catch {
+  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: could not create $out ($($_.Exception.Message)). Pick another folder with -OutDir.&quot;)
+  exit 1
+}
 
 function Write-Log([string]$Text) {
   Write-Verbose $Text
   if ($VerbosePreference -ne &#x27;SilentlyContinue&#x27;) {
-    Add-Content -Path $log -Value &quot;$(Get-Date -Format &#x27;yyyy-MM-dd HH:mm:ss&#x27;) [$Step] $Text&quot;
+    Add-Content -Path $log -Value &quot;$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text&quot;
   }
+}
+
+function Test-Marker {
+  if (-not (Test-Path $plugins)) { return $false }
+  return [bool]((Get-Content $plugins) | Where-Object { $_.Trim() -eq $marker })
 }
 
 Write-Log &quot;Output folder: $out&quot;
@@ -375,34 +387,60 @@ if ($AddMarker) {
     exit 1
   }
   $backup = Join-Path $OutDir &#x27;Plugins.txt.backup&#x27;
-  Copy-Item $plugins $backup -Force
-  Add-Content -Path $plugins -Value $marker
-  Write-Host &quot;Backed up Plugins.txt to $backup and added the marker line.&quot;
-  Write-Log &quot;Marker added; backup at $backup&quot;
+  try {
+    if (Test-Path $backup) {
+      Write-Host &quot;Kept the existing backup at $backup (it is not overwritten).&quot;
+      Write-Log &quot;Backup already exists; not overwritten&quot;
+    } else {
+      Copy-Item $plugins $backup
+      Write-Host &quot;Backed up Plugins.txt to $backup.&quot;
+      Write-Log &quot;Backup written to $backup&quot;
+    }
+    if (Test-Marker) {
+      Write-Host &quot;The marker line is already in Plugins.txt; not adding it again.&quot;
+      Write-Log &quot;Marker already present&quot;
+    } else {
+      # Start the marker on its own line even when the file doesn&#x27;t end with a line break.
+      $bytes = [IO.File]::ReadAllBytes($plugins)
+      $prefix = if ($bytes.Length -gt 0 -and $bytes[-1] -ne 10) { &quot;`r`n&quot; } else { &#x27;&#x27; }
+      [IO.File]::AppendAllText($plugins, &quot;$prefix$marker`r`n&quot;)
+      Write-Host &quot;Added the marker line.&quot;
+      Write-Log &quot;Marker added&quot;
+    }
+  } catch {
+    [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: could not back up or mark $plugins ($($_.Exception.Message)). Close the game and your mod manager, then try again.&quot;)
+    exit 1
+  }
 }
 
 $info = @(
   &quot;Step: $Step&quot;,
-  &quot;Taken: $(Get-Date -Format &#x27;yyyy-MM-dd HH:mm:ss&#x27;)&quot;,
+  &quot;Taken: $((Get-Date).ToString($timeFmt, $inv))&quot;,
   &quot;Starfield running: $([bool](Get-Process Starfield -ErrorAction SilentlyContinue))&quot;,
   &quot;Vortex running: $([bool](Get-Process Vortex -ErrorAction SilentlyContinue))&quot;,
   &quot;Mod Organizer running: $([bool](Get-Process ModOrganizer -ErrorAction SilentlyContinue))&quot;,
   &quot;&quot;
 )
 foreach ($f in $files) {
+  $name = Split-Path $f -Leaf
   if (Test-Path $f) {
-    $i = Get-Item $f
-    Copy-Item $f $out -Force
-    $line = &quot;$($i.Name): modified $($i.LastWriteTime.ToString(&#x27;yyyy-MM-dd HH:mm:ss&#x27;)), $($i.Length) bytes, SHA256 $((Get-FileHash $f).Hash)&quot;
-    Write-Log &quot;Copied $f&quot;
+    try {
+      $i = Get-Item $f
+      Copy-Item $f $out -Force
+      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash $f).Hash)&quot;
+      Write-Log &quot;Copied $f&quot;
+    } catch {
+      $line = &quot;${name}: could not read ($($_.Exception.Message)); take this step&#x27;s snapshot again&quot;
+      Write-Log &quot;Could not read ${f}: $($_.Exception.Message)&quot;
+    }
   } else {
-    $line = &quot;$(Split-Path $f -Leaf): not found at $f&quot;
+    $line = &quot;${name}: not found at $f&quot;
     Write-Log &quot;Not found: $f&quot;
   }
   $info += $line
 }
 if (Test-Path $plugins) {
-  $info += &#x27;&#x27;, &quot;Marker line present: $((Get-Content $plugins) -contains $marker)&quot;
+  $info += &#x27;&#x27;, &quot;Marker line present: $(Test-Marker)&quot;
 }
 $info | Set-Content (Join-Path $out &#x27;info.txt&#x27;)
 $info | ForEach-Object { Write-Host $_ }
@@ -410,7 +448,8 @@ Write-Host &quot;Saved to $out&quot;
 exit 0
 </code></pre></details><details><summary>compare_snapshots.py (MIT license)</summary><pre><code>&quot;&quot;&quot;Compare the step folders made by PluginsTxtSnapshot.ps1.
 
-For each pair of steps in name order it reports:
+Each step is a folder holding info.txt. Steps are taken in the order of their number prefix (2-x before 10-x).
+For each pair of steps it reports:
   - whether Plugins.txt was rewritten (its modified time changed) and how its lines changed,
   - whether ContentCatalog.txt changed, field by field.
 
@@ -450,12 +489,43 @@ def mtime(step, name):
     return m.group(1) if m else None
 
 
+def desktop():
+    &quot;&quot;&quot;The real Desktop folder (OneDrive can move it), as PluginsTxtSnapshot.ps1 finds it.&quot;&quot;&quot;
+    if os.name == &quot;nt&quot;:
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [(&quot;d1&quot;, wintypes.DWORD), (&quot;d2&quot;, wintypes.WORD), (&quot;d3&quot;, wintypes.WORD),
+                            (&quot;d4&quot;, ctypes.c_ubyte * 8)]
+
+            fid = GUID(0xB4BFCC3A, 0xDB2C, 0x424C, (ctypes.c_ubyte * 8)(0xB0, 0x29, 0x7F, 0xE9, 0x9A, 0x87, 0xC6, 0x41))
+            path = ctypes.c_wchar_p()
+            if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(fid), 0, None, ctypes.byref(path)) == 0:
+                result = path.value
+                ctypes.windll.ole32.CoTaskMemFree(path)
+                if result:
+                    return Path(result)
+        except (OSError, AttributeError):
+            pass
+    return Path(os.path.expanduser(&quot;~&quot;)) / &quot;Desktop&quot;
+
+
+def step_key(p):
+    &quot;&quot;&quot;Sort steps by their number prefix (2-x before 10-x), then by name.&quot;&quot;&quot;
+    m = re.match(r&quot;(\d+)&quot;, p.name)
+    return (int(m.group(1)) if m else float(&quot;inf&quot;), p.name)
+
+
 def catalog_diff(pa, pb):
     try:
-        ja = json.loads(pa.read_text(encoding=&quot;utf-8&quot;))
-        jb = json.loads(pb.read_text(encoding=&quot;utf-8&quot;))
+        ja = json.loads(pa.read_text(encoding=&quot;utf-8-sig&quot;))
+        jb = json.loads(pb.read_text(encoding=&quot;utf-8-sig&quot;))
     except (OSError, ValueError) as ex:
         return [f&quot;    could not read as JSON ({ex}); compare the two files by hand&quot;]
+    if not isinstance(ja, dict) or not isinstance(jb, dict):
+        return [&quot;    not the expected JSON object; compare the two files by hand&quot;]
     out = []
     for k in sorted(set(ja) | set(jb)):
         va, vb = ja.get(k), jb.get(k)
@@ -499,7 +569,7 @@ def compare(a, b):
 
 
 def main(argv):
-    desk = Path(os.path.expanduser(&quot;~&quot;)) / &quot;Desktop&quot; / &quot;PluginsTxtTest&quot;
+    desk = desktop() / &quot;PluginsTxtTest&quot;
     ap = argparse.ArgumentParser(description=&quot;Compare PluginsTxtSnapshot.ps1 step folders.&quot;)
     ap.add_argument(&quot;folder&quot;, nargs=&quot;?&quot;, default=str(desk), help=&quot;snapshot folder (default: %(default)s)&quot;)
     ap.add_argument(&quot;--verbose&quot;, action=&quot;store_true&quot;, help=&quot;also write compare.log in the folder&quot;)
@@ -509,7 +579,7 @@ def main(argv):
         print(f&quot;compare_snapshots: folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.&quot;,
               file=sys.stderr)
         return 1
-    steps = sorted(p for p in root.iterdir() if p.is_dir())
+    steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / &quot;info.txt&quot;).exists()), key=step_key)
     log(f&quot;folder {root}: steps {[s.name for s in steps]}&quot;)
     if len(steps) &lt; 2:
         print(f&quot;compare_snapshots: {root} has {len(steps)} step folder(s); take at least two snapshots first.&quot;,
