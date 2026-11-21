@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="We read Starfield.exe and watched Plugins.txt in the game to test whether Vortex mods and Creations have separate load orders. They don't.">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Load Order Facts: Plugins.txt and Creations</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: dark section rail on the left (house style of DevProcess and the DD), one reading column of pastel
+   section panels; the method is told as a numbered trail because the order of the search is the point. */
+:root {
+  --bg:#f5f6f8; --panel:#ffffff; --text:#1b2130; --muted:#5b6476; --line:#dce0e8; --code-bg:#edf0f5;
+  --accent:#2f56c9;
+  --side:#141925; --side-text:#c9cfdb; --side-muted:#7f889b; --side-hover:#232a3a;
+  --prop-bg:#efe7f8; --prop-fg:#5b2a8c; --pub-bg:#e3eefc; --pub-fg:#1d4f9c;
+  --fork-bg:#fdf0dc; --fork-fg:#8a4b00; --priv-bg:#fbe8ec; --priv-fg:#9a2c45;
+  --new-bg:#e0f3ea; --new-fg:#17694b; --cl-bg:#eceef3; --cl-fg:#4a5265;
+  --sans:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:ui-monospace, Consolas, monospace;
+  --tint-s: 70%; --tint-l: 95%; --tint-bd-s: 45%; --tint-bd-l: 85%; --tint-th-s: 55%; --tint-th-l: 90%;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#10131a; --panel:#181c25; --text:#e3e7ef; --muted:#9aa3b5; --line:#2c3240; --code-bg:#232836;
+  --accent:#8ea6ff;
+  --side:#0b0e14; --side-text:#aab2c2; --side-muted:#6c7588; --side-hover:#1a1f2b;
+  --prop-bg:#2e2340; --prop-fg:#d3b6f5; --pub-bg:#1f2c45; --pub-fg:#a9c6ff;
+  --fork-bg:#3a2a12; --fork-fg:#f3c27a; --priv-bg:#3a1c25; --priv-fg:#f2a7b8;
+  --new-bg:#163428; --new-fg:#86dcb4; --cl-bg:#232836; --cl-fg:#b4bccc;
+  --tint-s: 28%; --tint-l: 14%; --tint-bd-s: 25%; --tint-bd-l: 24%; --tint-th-s: 25%; --tint-th-l: 20%; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg:#10131a; --panel:#181c25; --text:#e3e7ef; --muted:#9aa3b5; --line:#2c3240; --code-bg:#232836;
+  --accent:#8ea6ff;
+  --side:#0b0e14; --side-text:#aab2c2; --side-muted:#6c7588; --side-hover:#1a1f2b;
+  --prop-bg:#2e2340; --prop-fg:#d3b6f5; --pub-bg:#1f2c45; --pub-fg:#a9c6ff;
+  --fork-bg:#3a2a12; --fork-fg:#f3c27a; --priv-bg:#3a1c25; --priv-fg:#f2a7b8;
+  --new-bg:#163428; --new-fg:#86dcb4; --cl-bg:#232836; --cl-fg:#b4bccc;
+  --tint-s: 28%; --tint-l: 14%; --tint-bd-s: 25%; --tint-bd-l: 24%; --tint-th-s: 25%; --tint-th-l: 20%; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.6; }
+a { color: var(--accent); }
+.wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+nav.rail { background: var(--side); color: var(--side-text); padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 12px; }
+.rail-inner { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); max-height: calc(100vh - 40px); overflow-y: auto; }
+.rail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.rail a { display: block; padding: 6px 10px; border-radius: 4px; color: var(--side-text); text-decoration: none; font-size: 14px; line-height: 1.3; }
+.rail a:hover, .rail a:focus-visible { background: var(--side-hover); color: #fff; outline: none; }
+.rail a.active { background: rgba(255,255,255,.12); color: #fff; font-weight: 600; }
+.rail a.edge { box-shadow: inset 4px 0 0 hsl(var(--h) 30% 32%); }
+
+main { padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+/* Header: same as the Starfield Version History site (eyebrow, 26px title, lede, bylines, stat tiles). */
+.col { display: grid; gap: 28px; min-width: 0; }
+.intro { display: grid; gap: 12px; min-width: 0; scroll-margin-top: 16px; }
+.intro h1 { margin: 0; font-size: 26px; font-weight: 650; line-height: 1.2; text-wrap: balance; }
+.intro p { margin: 0; color: var(--muted); }
+.eyebrow { font: 12.5px/1.3 var(--mono); color: var(--muted); letter-spacing: .02em; }
+.intro .lede { font-size: 16px; }
+.intro .byline { font-size: 14px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 12px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-top: 5px solid hsl(var(--h) 60% 62%);
+  border-radius: 10px; padding: 12px 16px; display: grid; gap: 2px; }
+.stat b { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--text); }
+.stat span { font-size: 13px; color: var(--muted); }
+
+section.s { display: grid; gap: 12px; min-width: 0; scroll-margin-top: 16px; }
+section.s > h3 { margin: 0; font-size: 21px; line-height: 1.3; text-wrap: balance; }
+section.s p { margin: 0; }
+section.cat { background: hsl(var(--h) var(--tint-s) var(--tint-l)); border: 1px solid hsl(var(--h) var(--tint-bd-s) var(--tint-bd-l)); border-radius: 14px; padding: 16px 18px 18px; }
+section.cat > h3 { padding-bottom: 6px; border-bottom: 1px solid hsl(var(--h) var(--tint-bd-s) var(--tint-bd-l)); }
+section.cat th, section.cat td { border-bottom-color: hsl(var(--h) var(--tint-bd-s) var(--tint-bd-l)); }
+section.cat thead th { background: hsl(var(--h) var(--tint-th-s) var(--tint-th-l)); }
+section.cat code, section.cat pre { background: hsl(var(--h) var(--tint-th-s) var(--tint-th-l)); }
+section.cat pre code { background: none; }
+section.s ul, section.s ol { margin: 0; padding-left: 1.25em; display: grid; gap: 6px; }
+li::marker { color: var(--muted); }
+code { font-family: var(--mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
+pre code { background: none; padding: 0; overflow-wrap: normal; font-size: inherit; }
+details summary { cursor: pointer; font-weight: 600; margin: 4px 0 8px; }
+
+.scroll { overflow-x: auto; min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 40rem; }
+th, td { text-align: left; padding: 6px 12px 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody th { font-weight: 600; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.k-pub { background: var(--pub-bg); color: var(--pub-fg); }
+.k-priv { background: var(--cl-bg); color: var(--cl-fg); }
+.k-bgs { background: var(--prop-bg); color: var(--prop-fg); }
+.v-best { background: var(--new-bg); color: var(--new-fg); }
+.v-maybe { background: var(--fork-bg); color: var(--fork-fg); }
+.v-no { background: var(--priv-bg); color: var(--priv-fg); }
+
+ol.steps { list-style: none; padding: 0; display: grid; gap: 12px; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 6px; min-width: 0; }
+.step .sh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.step h4 { margin: 0; font-size: 16px; }
+.step .n { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--accent); border: 1px solid var(--line); border-radius: 999px; min-width: 24px; text-align: center; padding: 1px 6px; }
+.step b { color: var(--muted); font-weight: 600; }
+
+figure { margin: 0; }
+.photo { display: grid; gap: 6px; justify-items: start; }
+.photo img { width: 464px; max-width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--line); image-rendering: auto; }
+.photo figcaption, .diagram figcaption { font-size: 13px; color: var(--muted); }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; }
+.diagram figcaption { font-weight: 600; color: var(--text); font-size: 14px; }
+.flowsvg svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.flowsvg .b { stroke: var(--line); stroke-width: 1; }
+.b-you { fill: var(--fork-bg); background: var(--fork-bg); }
+.b-claude { fill: var(--cl-bg); background: var(--cl-bg); }
+.b-priv { fill: var(--priv-bg); background: var(--priv-bg); }
+.b-pub { fill: var(--pub-bg); background: var(--pub-bg); }
+.b-bgs { fill: var(--prop-bg); background: var(--prop-bg); }
+.b-new { fill: var(--new-bg); background: var(--new-bg); }
+.flowsvg .bl { font-family: var(--sans); font-size: 13px; fill: var(--text); }
+.flowsvg .bl.strong { font-weight: 700; font-size: 14px; }
+.flowsvg .bt { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.bt-you { fill: var(--fork-fg); } .bt-claude { fill: var(--cl-fg); } .bt-priv { fill: var(--priv-fg); }
+.bt-pub { fill: var(--pub-fg); } .bt-bgs { fill: var(--prop-fg); } .bt-new { fill: var(--new-fg); }
+.flowsvg .ar { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.flowsvg .ah { fill: var(--muted); }
+.key { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); align-items: center; }
+.sw { display: inline-flex; align-items: center; gap: 6px; }
+.sw i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+footer { color: var(--muted); font-size: 12px; text-align: center; border-top: 1px solid var(--line); padding-top: 14px; }
+
+@media (max-width: 760px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); }
+  nav.rail { padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px; }
+  .rail-inner { position: static; max-height: none; }
+  .rail ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  .intro h1 { font-size: 28px; }
+  section.cat { padding: 14px 12px 16px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+blockquote{margin:0;padding:10px 14px;border-left:4px solid hsl(var(--h) 45% 55%);background:var(--panel);border-radius:6px;font-style:italic}.note{font-size:13px;color:var(--muted)}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <nav class="rail" aria-label="Sections">
+    <div class="rail-inner">
+      <ul>
+<li><a href="#top">Top</a></li>
+<li><a class="edge" style="--h:215" href="#tldr">TL;DR</a></li>
+<li><a class="edge" style="--h:25" href="#news">What's new</a></li>
+<li><a class="edge" style="--h:35" href="#claim">The claim</a></li>
+<li><a class="edge" style="--h:160" href="#verdicts">Verdicts</a></li>
+<li><a class="edge" style="--h:190" href="#conclusion">Conclusion</a></li>
+<li><a class="edge" style="--h:265" href="#tools">What we used</a></li>
+<li><a class="edge" style="--h:285" href="#re">Part 1: code</a></li>
+<li><a class="edge" style="--h:150" href="#test">Part 2: test</a></li>
+<li><a class="edge" style="--h:45" href="#corrections">Corrections</a></li>
+<li><a class="edge" style="--h:350" href="#limits">Limits</a></li>
+<li><a class="edge" style="--h:120" href="#tips">For your setup</a></li>
+<li><a class="edge" style="--h:200" href="#repeat">Run it yourself</a></li>
+      </ul>
+    </div>
+  </nav>
+  <main>
+    <div class="col">
+      <header class="intro" id="top">
+        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:33 UTC</p>
+        <h1>Do Vortex mods and Creations really have separate load orders?</h1>
+        <p class="lede">A Facebook comment claimed that Vortex mods load through the script extender, that Creations load when you load a save, and that this gives Starfield two load orders. We checked the claim twice: by reading the game's own code, and by watching Plugins.txt in the game step by step. This page shows every step, what each one found, and how you can repeat the test on your own PC.</p>
+        <p class="byline">By <a href="https://github.com/taosecurity" target="_blank" rel="noopener">Richard Bejtlich</a>, <a href="https://www.youtube.com/@RichardBejtlich" target="_blank" rel="noopener">Richard Presents Starfield Essentials</a> on YouTube</p>
+        <p class="byline">More Starfield tools and references are on the <a href="https://taosecurity.github.io/">Richard Presents Development Hub</a>.</p>
+        <div class="stats"><div class="stat" style="--h:215"><b>1</b><span>load order: Creations and other plugins share one Plugins.txt</span></div><div class="stat" style="--h:160"><b>0</b><span>times Plugins.txt changed when a save was loaded (Continue and Load)</span></div><div class="stat" style="--h:35"><b>2</b><span>places in Starfield.exe that rewrite Plugins.txt: the Creations sync and the Creations menu</span></div><div class="stat" style="--h:265"><b>7</b><span>in-game snapshots, including a control step that proved the test catches a rewrite</span></div></div>
+      </header>
+
+<section class="s cat" id="tldr" style="--h:215"><h3>TL;DR</h3><p>I tested this. I RE&#x27;d the game&#x27;s code (Starfield.exe 1.16.244) and snapshotted Plugins.txt in game during a series of tests.</p><ul><li>Starfield reads Plugins.txt itself at startup, so Vortex and MO2 plugins load without SFSE. SFSE is for DLL plugins.</li><li>Creations aren&#x27;t loaded from your save. They&#x27;re in the same Plugins.txt as your other mods: one list, one load order.</li><li>Loading a save (Continue or Load) didn&#x27;t change Plugins.txt at all. A save only records which plugins it used.</li><li>The game does rewrite Plugins.txt at every launch and when you reorder Creations in game. In my test it kept every mod and only moved what I moved.</li></ul><p><b>The conflict isn&#x27;t two load orders. It&#x27;s two tools editing one file: if you reorder in game and your mod manager later deploys its own order, one undoes the other. Manage the order in one place.</b></p><p class="note">This is Richard's reply to the comment, word for word. The rest of the page shows the evidence behind each sentence.</p></section>
+<section class="s cat" id="news" style="--h:25"><h3>What's new</h3><ul><li><strong>2026-11-21.</strong> This page went live, with the code check, the in-game test, the scripts and the verdicts.</li></ul></section>
+<section class="s cat" id="claim" style="--h:35"><h3>The claim</h3><blockquote>Vortex mods load when you start the game via the script extender. Creations load when you load the character save. This means load orders are managed seperatly. This is what creates most conflicts. I make mods and this is something that we must account for.</blockquote><p>The comment was posted on Facebook by a mod author. We quote it as written. It makes three testable claims: Vortex mods depend on the script extender, Creations load from the save, and the two have separate load orders.</p></section>
+<section class="s cat" id="verdicts" style="--h:160"><h3>Verdict, claim by claim</h3><div class="scroll"><table><thead><tr><th>Claim</th><th>Verdict</th><th>Evidence</th></tr></thead><tbody><tr><th>Vortex mods load via the script extender.</th><td><span class="pill v-no">False</span></td><td>Starfield.exe has its own Plugins.txt reader, and the game's startup code calls it. SFSE describes itself as mostly a loader for its own DLL plugins. SFSE also only supports the Steam version, yet Game Pass players load mods from Plugins.txt too.</td></tr><tr><th>Creations load when you load the character save.</th><td><span class="pill v-no">False</span></td><td>Creations are plugin files in the Data folder, listed in the same Plugins.txt. The game reads that list at startup, before the main menu. In the test, loading two different saves didn't touch Plugins.txt.</td></tr><tr><th>Load orders are managed separately.</th><td><span class="pill v-no">False</span></td><td>There's one list in the game and one file on disk. The Creations code looks up each Creation's plugin in the same file list as every other plugin, writes them all to the same Plugins.txt, and rebuilds the list from it.</td></tr><tr><th>This is what creates most conflicts.</th><td><span class="pill v-maybe">Partly true</span></td><td>There is a real conflict, but it comes from two tools editing one file. The game rewrites Plugins.txt at every launch and after an in-game reorder, and your mod manager writes its own order when it deploys.</td></tr><tr><th>We must account for it.</th><td><span class="pill v-best">True</span></td><td>Manage the order in one place, and check it again after you change Creations in the game.</td></tr></tbody></table></div><figure class="diagram"><figcaption id="d-startup">What happens to Plugins.txt from launch to loading a save, as the code and the test showed.</figcaption><div class="scroll flowsvg"><svg viewBox="0 0 1152 246" role="img" aria-labelledby="d-startup" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-d-startup" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<rect x="10" y="10" width="250" height="90" rx="8" class="b b-you"/>
+<text x="22" y="32" class="bt bt-you">1  Start the game</text>
+<text x="22" y="52" class="bl">You launch Starfield from Steam,</text>
+<text x="22" y="68" class="bl">Game Pass or a mod manager.</text>
+<rect x="304" y="10" width="250" height="90" rx="8" class="b b-bgs"/>
+<text x="316" y="32" class="bt bt-bgs">2  Read the INI files</text>
+<text x="316" y="52" class="bl">The start-up code reads</text>
+<text x="316" y="68" class="bl">Starfield.ini, StarfieldCustom.ini</text>
+<text x="316" y="84" class="bl">and StarfieldPrefs.ini.</text>
+<rect x="598" y="10" width="250" height="90" rx="8" class="b b-bgs"/>
+<text x="610" y="32" class="bt bt-bgs">3  Read Plugins.txt</text>
+<text x="610" y="52" class="bl">The game&#x27;s own reader takes every</text>
+<text x="610" y="68" class="bl">line that starts with * as an</text>
+<text x="610" y="84" class="bl">active plugin.</text>
+<rect x="892" y="10" width="250" height="90" rx="8" class="b b-bgs"/>
+<text x="904" y="32" class="bt bt-bgs">4  Creations sync</text>
+<text x="904" y="52" class="bl">The Creations code matches each</text>
+<text x="904" y="68" class="bl">Creation&#x27;s plugin to the same file</text>
+<text x="904" y="84" class="bl">list.</text>
+<rect x="10" y="146" width="250" height="90" rx="8" class="b b-pub"/>
+<text x="22" y="168" class="bt bt-pub">5  Rewrite Plugins.txt</text>
+<text x="22" y="188" class="bl">The game deletes the file and</text>
+<text x="22" y="204" class="bl">writes it again from its list.</text>
+<text x="22" y="220" class="bl">Comments are dropped.</text>
+<rect x="304" y="146" width="250" height="90" rx="8" class="b b-you"/>
+<text x="316" y="168" class="bt bt-you">6  Main menu</text>
+<text x="316" y="188" class="bl">All plugins are loaded now,</text>
+<text x="316" y="204" class="bl">Creations and Vortex mods alike,</text>
+<text x="316" y="220" class="bl">in one order.</text>
+<rect x="598" y="146" width="250" height="90" rx="8" class="b b-you"/>
+<text x="610" y="168" class="bt bt-you">7  Load a save</text>
+<text x="610" y="188" class="bl">The game compares the save&#x27;s</text>
+<text x="610" y="204" class="bl">plugin list with what is loaded.</text>
+<text x="610" y="220" class="bl">Plugins.txt is untouched.</text>
+<rect x="892" y="146" width="250" height="90" rx="8" class="b b-new"/>
+<text x="904" y="168" class="bt bt-new">8  One load order</text>
+<text x="904" y="188" class="bl">One list in memory and one file on</text>
+<text x="904" y="204" class="bl">disk. Change it in one place.</text>
+<path d="M260 55.0 H301" class="ar" marker-end="url(#ah-d-startup)"/>
+<path d="M554 55.0 H595" class="ar" marker-end="url(#ah-d-startup)"/>
+<path d="M848 55.0 H889" class="ar" marker-end="url(#ah-d-startup)"/>
+<path d="M1017.0 100 V123.0 H135.0 V143" class="ar" marker-end="url(#ah-d-startup)"/>
+<path d="M260 191.0 H301" class="ar" marker-end="url(#ah-d-startup)"/>
+<path d="M554 191.0 H595" class="ar" marker-end="url(#ah-d-startup)"/>
+<path d="M848 191.0 H889" class="ar" marker-end="url(#ah-d-startup)"/>
+</svg></div><div class="key"><span class="sw"><i class="b-you"></i>the player</span><span class="sw"><i class="b-bgs"></i>Starfield.exe</span><span class="sw"><i class="b-pub"></i>files on disk</span><span class="sw"><i class="b-new"></i>what it means</span></div></figure></section>
+<section class="s cat" id="conclusion" style="--h:190"><h3>Complete conclusion</h3><ul><li><b>There is one load order.</b> Starfield keeps one list of plugins and one file on disk, Plugins.txt. Creations are ordinary plugin files in the Data folder, and they sit in that list with every other plugin. ContentCatalog.txt only records which Creations are installed.</li><li><b>The game reads Plugins.txt itself, at startup.</b> The reader is part of Starfield.exe and runs from the game's start-up code. The script extender isn't needed for <code>.esm</code>, <code>.esp</code> or <code>.esl</code> plugins. SFSE loads DLL plugins.</li><li><b>Loading a save doesn't load or reorder plugins.</b> Continue and Load left Plugins.txt untouched. A save only records which plugins it used, so the game can warn you when one is missing.</li><li><b>The game rewrites Plugins.txt at every launch,</b> before the main menu, and again whenever you change Creations in the in-game menu. In the test, both rewrites kept every plugin. The launch rewrite changed nothing, and the menu rewrite moved only what was moved. Anything that isn't a plugin line, such as a comment, is dropped.</li><li><b>The real conflict is two tools editing one file.</b> If you reorder in the game and your mod manager later deploys its own order, the last one to write wins. Manage the order in one place, and check it again after you change Creations in the game.</li></ul><figure class="diagram"><figcaption id="d-compare">The comment's model of loading compared with what we found.</figcaption><div class="scroll flowsvg"><svg viewBox="0 0 1080 156" role="img" aria-labelledby="d-compare" xmlns="http://www.w3.org/2000/svg">
+<rect x="10" y="10" width="520" height="136" rx="8" class="b b-priv"/>
+<text x="24" y="36" class="bl strong">What the comment says</text>
+<text x="24" y="62" class="bl">• Vortex mods load through SFSE at launch</text>
+<text x="24" y="82" class="bl">• Creations load when a save loads</text>
+<text x="24" y="102" class="bl">• Two load orders, managed separately</text>
+<text x="24" y="122" class="bl">• Conflicts come from the two orders</text>
+<rect x="550" y="10" width="520" height="136" rx="8" class="b b-new"/>
+<text x="564" y="36" class="bl strong">What the code and the test show</text>
+<text x="564" y="62" class="bl">• Starfield.exe reads Plugins.txt itself at launch</text>
+<text x="564" y="82" class="bl">• Creations load at launch, from the same list</text>
+<text x="564" y="102" class="bl">• One load order in one file</text>
+<text x="564" y="122" class="bl">• Conflicts come from two tools writing one file</text>
+</svg></div></figure></section>
+<section class="s cat" id="tools" style="--h:265"><h3>What we used</h3><p>Every tool here only reads. Nothing changed the game files. The only file written was a comment line added to Plugins.txt for the test, after a backup.</p><div class="scroll"><table><thead><tr><th>Tool</th><th>Kind</th><th>What it is</th><th>Used for</th></tr></thead><tbody><tr><th>Starfield.exe 1.16.244</th><td><span class="pill k-bgs">Game file</span></td><td>The Steam game executable, the version the test ran on.</td><td>The code under study. Read only, never changed.</td></tr><tr><th>Ghidra 12.1.2</th><td><span class="pill k-pub">Public tool</span></td><td>The NSA's free reverse-engineering tool.</td><td>Disassembling and decompiling Starfield.exe.</td></tr><tr><th>Bethesda Ghidra Scripts</th><td><span class="pill k-pub">Public tool</span></td><td>Community scripts that name Starfield's classes and functions in Ghidra from public data (RTTI and CommonLibSF).</td><td>Names such as TESDataHandler, MainMenu and UserContent.</td></tr><tr><th>GhidraSQL 0.0.8</th><td><span class="pill k-pub">Public tool</span></td><td>Elias Bachaalany's SQL interface to a Ghidra project.</td><td>Read-only queries: strings, cross-references, callers and decompiled functions.</td></tr><tr><th>PluginsTxtSnapshot.ps1</th><td><span class="pill k-priv">Our script</span></td><td>A short PowerShell script written for this test (on this page).</td><td>Copying Plugins.txt, ContentCatalog.txt and StarfieldCustom.ini, with times and checksums, after each in-game step.</td></tr><tr><th>compare_snapshots.py</th><td><span class="pill k-priv">Our script</span></td><td>A short Python script written for this test (on this page).</td><td>Comparing the steps: rewrites, line changes and catalog fields.</td></tr></tbody></table></div><figure class="diagram"><figcaption id="d-method">How we checked: first the code, then the game itself.</figcaption><div class="scroll flowsvg"><svg viewBox="0 0 1152 246" role="img" aria-labelledby="d-method" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah-d-method" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<rect x="10" y="10" width="250" height="90" rx="8" class="b b-you"/>
+<text x="22" y="32" class="bt bt-you">1  The claim</text>
+<text x="22" y="52" class="bl">A comment said Vortex mods and</text>
+<text x="22" y="68" class="bl">Creations load at different times,</text>
+<text x="22" y="84" class="bl">in different orders.</text>
+<rect x="304" y="10" width="250" height="90" rx="8" class="b b-bgs"/>
+<text x="316" y="32" class="bt bt-bgs">2  Strings</text>
+<text x="316" y="52" class="bl">Find where Starfield.exe names</text>
+<text x="316" y="68" class="bl">Plugins.txt and</text>
+<text x="316" y="84" class="bl">ContentCatalog.txt.</text>
+<rect x="598" y="10" width="250" height="90" rx="8" class="b b-bgs"/>
+<text x="610" y="32" class="bt bt-bgs">3  Reader and writer</text>
+<text x="610" y="52" class="bl">Decompile the two Plugins.txt</text>
+<text x="610" y="68" class="bl">functions and see what each one</text>
+<text x="610" y="84" class="bl">does.</text>
+<rect x="892" y="10" width="250" height="90" rx="8" class="b b-bgs"/>
+<text x="904" y="32" class="bt bt-bgs">4  Callers</text>
+<text x="904" y="52" class="bl">Trace each function back to start-</text>
+<text x="904" y="68" class="bl">up, the Creations code and the</text>
+<text x="904" y="84" class="bl">main menu.</text>
+<rect x="10" y="146" width="250" height="90" rx="8" class="b b-pub"/>
+<text x="22" y="168" class="bt bt-pub">5  Snapshot script</text>
+<text x="22" y="188" class="bl">Copy the load-order files, with</text>
+<text x="22" y="204" class="bl">times and checksums, after each</text>
+<text x="22" y="220" class="bl">in-game step.</text>
+<rect x="304" y="146" width="250" height="90" rx="8" class="b b-pub"/>
+<text x="316" y="168" class="bt bt-pub">6  Marker line</text>
+<text x="316" y="188" class="bl">Add a comment line the game</text>
+<text x="316" y="204" class="bl">ignores but drops on a rewrite.</text>
+<rect x="598" y="146" width="250" height="90" rx="8" class="b b-you"/>
+<text x="610" y="168" class="bt bt-you">7  Seven steps</text>
+<text x="610" y="188" class="bl">Start, look at Creations,</text>
+<text x="610" y="204" class="bl">Continue, Load, quit, then reorder</text>
+<text x="610" y="220" class="bl">a Creation.</text>
+<rect x="892" y="146" width="250" height="90" rx="8" class="b b-new"/>
+<text x="904" y="168" class="bt bt-new">8  Verdict</text>
+<text x="904" y="188" class="bl">One load order. Rewrites at launch</text>
+<text x="904" y="204" class="bl">and on reorder, not on save load.</text>
+<path d="M260 55.0 H301" class="ar" marker-end="url(#ah-d-method)"/>
+<path d="M554 55.0 H595" class="ar" marker-end="url(#ah-d-method)"/>
+<path d="M848 55.0 H889" class="ar" marker-end="url(#ah-d-method)"/>
+<path d="M1017.0 100 V123.0 H135.0 V143" class="ar" marker-end="url(#ah-d-method)"/>
+<path d="M260 191.0 H301" class="ar" marker-end="url(#ah-d-method)"/>
+<path d="M554 191.0 H595" class="ar" marker-end="url(#ah-d-method)"/>
+<path d="M848 191.0 H889" class="ar" marker-end="url(#ah-d-method)"/>
+</svg></div><div class="key"><span class="sw"><i class="b-you"></i>the player</span><span class="sw"><i class="b-bgs"></i>Starfield.exe</span><span class="sw"><i class="b-pub"></i>files on disk</span><span class="sw"><i class="b-new"></i>what it means</span></div></figure></section>
+<section class="s cat" id="re" style="--h:285"><h3>Part 1: the game's code</h3><p>We loaded Starfield.exe 1.16.244, the same build the test ran on, into Ghidra with the Bethesda Ghidra Scripts names, and queried it read-only with GhidraSQL. The addresses below are for that build and will move in other versions. The page describes what the code does and shows none of it.</p><ol class="steps"><li class="step"><div class="sh"><span class="n">1</span><h4>Find the file names in the executable</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We searched Starfield.exe's strings for the load-order file names and the old INI settings.</p><p><b>What it showed.</b> The executable holds <code>%sPlugins.txt</code>, <code>%sContentCatalog.txt</code>, the ten <code>sTestFile1</code> to <code>sTestFile10</code> settings of the [General] INI section (the old way to load a plugin without Plugins.txt) and <code>bInvalidateOlderFiles</code>. Two functions use the Plugins.txt name, and one uses the ContentCatalog.txt name.</p></li><li class="step"><div class="sh"><span class="n">2</span><h4>Read the first Plugins.txt function: the reader</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We decompiled the function at <code>0x140425310</code>.</p><p><b>What it showed.</b> It opens Plugins.txt for reading and reads it a line at a time. It skips lines that start with <code>#</code> and lines that are too short. When it's asked for active plugins only, it keeps only lines that start with <code>*</code> and drops the star. It adds each remaining name to the game's list of files. This is the game's own code, not the script extender's.</p></li><li class="step"><div class="sh"><span class="n">3</span><h4>Follow the reader back to startup</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We listed the reader's callers, then their callers, until we reached code we could identify.</p><p><b>What it showed.</b> One path starts in the game's start-up function (<code>0x141898870</code>), the same function that reads Starfield.ini, StarfieldCustom.ini and StarfieldPrefs.ini and checks the storefront. A second path runs through the function that loads Starfield.esm (<code>0x141883440</code>) and the function that builds TESDataHandler's file list (<code>0x140598750</code>). Both run when the game starts, before any save is loaded.</p></li><li class="step"><div class="sh"><span class="n">4</span><h4>Read the second Plugins.txt function: the writer</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We decompiled the function at <code>0x140424dc0</code>.</p><p><b>What it showed.</b> It clears the file's read-only flag, deletes Plugins.txt and creates a new one. It writes the two-line header ("This file is used by Starfield to keep track of your downloaded content. Please do not modify this file."), then one line per plugin in the list it is given, with a <code>*</code> in front of active ones. It skips <code>TestData.esm</code> and the game's built-in files. Anything else in the old file, such as a comment line, is gone after a rewrite.</p></li><li class="step"><div class="sh"><span class="n">5</span><h4>Find who calls the writer</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We listed every caller of the writer.</p><p><b>What it showed.</b> There are exactly two. One is the Creations sync (<code>0x14218bb40</code>) in the game's UserContent code, which has eight callers of its own. The other is a menu function (<code>0x141ecdc70</code>) reached from MainMenu: the Creations menu on the main menu. No other code writes Plugins.txt.</p></li><li class="step"><div class="sh"><span class="n">6</span><h4>Read the Creations sync</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We decompiled the Creations sync.</p><p><b>What it showed.</b> For each Creation, it takes the Creation's <code>.esm</code>, <code>.esp</code> or <code>.esl</code> files and looks each one up in TESDataHandler's list, the same list that holds every other plugin. Then it calls the writer and runs the list builder again, so the new order takes effect. Creations and manually installed plugins share one list and one file.</p></li><li class="step"><div class="sh"><span class="n">7</span><h4>Check ContentCatalog.txt</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We followed the ContentCatalog.txt name to its function (<code>0x142183f00</code>).</p><p><b>What it showed.</b> It belongs to the same UserContent code, next to a function that names the Creations data folder. ContentCatalog.txt is a JSON file that records which Creations are installed (title, version, files, timestamp). It doesn't hold the load order.</p></li><li class="step"><div class="sh"><span class="n">8</span><h4>Look for a path from loading a save</h4><span class="pill k-bgs">Game file</span></div><p><b>What we did.</b> We looked for any path from save loading to the writer.</p><p><b>What it showed.</b> We found none, and a save only stores the list of plugins it was made with. Code alone can't rule out every indirect call, so the in-game test checked this directly.</p></li></ol></section>
+<section class="s cat" id="test" style="--h:150"><h3>Part 2: the in-game test</h3><p>The code showed what can happen. The test showed what does happen. A script copied Plugins.txt, ContentCatalog.txt and StarfieldCustom.ini after each step, along with each file's modified time and SHA256 checksum. Vortex was closed for the whole test, so only the game could change the files.</p><p><b>The marker line.</b> Before the first launch the script added one comment line to Plugins.txt. The game's reader skips lines that start with <code>#</code>, so the line is harmless. The writer only writes its own header and plugin lines, so if the marker vanished, the game had rewritten the file. After the marker was gone, the file's modified time was the signal, because the writer deletes the file and creates it again.</p><p><b>The control.</b> Step 06 reorders a Creation, which the code says must rewrite the file. It did. That shows the test can see a rewrite when one happens, so the quiet steps really were quiet.</p><div class="scroll"><table><thead><tr><th>Step</th><th>What the player did</th><th>Plugins.txt</th><th>ContentCatalog.txt</th></tr></thead><tbody><tr><th>00</th><td>Snapshot with the game closed, adding the marker line</td><td>Marker added</td><td>-</td></tr><tr><th>01</th><td>Start the game from Steam and wait at the main menu</td><td><b>Rewritten</b> before the menu appeared. Only the marker line was dropped. All 149 active plugins kept their order.</td><td>Not changed</td></tr><tr><th>02</th><td>Open Creations, look at the load order, back out without changing anything</td><td>Not rewritten</td><td>Not changed</td></tr><tr><th>03</th><td>Press Continue and wait until in the game</td><td><b>Not rewritten</b></td><td><b>Rewritten</b>: only every Creation's Timestamp field changed</td></tr><tr><th>04</th><td>Load a different save from the Load menu</td><td><b>Not rewritten</b></td><td>Not changed</td></tr><tr><th>05</th><td>Quit to the desktop</td><td>Not rewritten</td><td>Not changed</td></tr><tr><th>06</th><td>Start again, open Creations, move one Creation, back out</td><td><b>Rewritten</b>: only the moved Creation's line changed place</td><td>Not changed</td></tr></tbody></table></div><p>All times were on 2026-11-21. Plugins.txt was rewritten at 16:17:10 (launch) and 16:21:37 (reorder) and at no other time. ContentCatalog.txt was rewritten once, at 16:18:45, while Continue loaded the save. The only change was that every Creation entry's Timestamp field was set to that moment.</p></section>
+<section class="s cat" id="corrections" style="--h:45"><h3>What we got wrong along the way</h3><p>We started with a draft reply and changed it as the evidence came in. These are the three changes, so you can judge the method as well as the result.</p><ul><li><b>"Since the mid-2024 update."</b> An early draft of the reply dated the native Plugins.txt support to a mid-2024 patch. That came from memory and a forum post, not from patch notes, so the reply now says "on current versions" and the code check stands in for the date.</li><li><b>"The game rewrites Plugins.txt when you load a save."</b> Several players report this. The code showed no such path, and the test didn't reproduce it on this setup: Continue and Load left Plugins.txt alone. What does change on the first Continue is ContentCatalog.txt (timestamps only), which may be what people noticed.</li><li><b>"Only Creations changes rewrite the file."</b> The code check found the Creations sync and the Creations menu as the only writers, and we first read that as "only when you change Creations". The test showed that the Creations sync also runs at every launch, so the game rewrites Plugins.txt every time it starts.</li></ul></section>
+<section class="s cat" id="limits" style="--h:350"><h3>Limits</h3><ul><li>The test ran once, on one PC, with the Steam version 1.16.244, Vortex closed, and one set of installed Creations.</li><li>We didn't test what Vortex or MO2 does on its next deploy after an in-game reorder. That's where two managers would really fight.</li><li>MO2 normally gives the game its own copy of Plugins.txt through its virtual file system, so the file this script reads may not be the one the game sees when you start it from MO2.</li><li>We didn't test the Game Pass version or a Plugins.txt line for a plugin file that's missing.</li><li>We didn't trace all eight callers of the Creations sync, so other moments may also trigger a rewrite. The launch rewrite is the one the test caught.</li></ul></section>
+<section class="s cat" id="tips" style="--h:120"><h3>What this means for your mod setup</h3><ul><li><b>Pick one place to manage the order:</b> your mod manager or the in-game Creations menu, not both.</li><li><b>After you change Creations in the game,</b> open your mod manager and check the order before you play, or deploy again from the mod manager.</li><li><b>Don't put notes in Plugins.txt.</b> The game deletes comment lines when it rewrites the file.</li><li><b>If a save says content is missing,</b> the fix is in Plugins.txt and the Data folder, not in the save. The save only lists what it was made with.</li></ul></section>
+<section class="s cat" id="repeat" style="--h:200"><h3>Run it yourself</h3><p>You need Windows PowerShell (built into Windows) and, for the comparison, Python 3.9 or later. Save both scripts from this page (or from the repository) in one folder. Close Vortex or MO2 first, so only the game can change the files. Run the snapshot script from the Windows account you play on. Its output goes to <code>PluginsTxtTest</code> on your Desktop unless you add <code>-OutDir</code>.</p><pre><code># 0. Before starting the game: first snapshot, and add the marker line
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 00-start -AddMarker
+
+# After each step in the game, Alt-Tab out and take a snapshot
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 01-menu
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 02-creations-look
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 03-continue
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 04-load-save
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 05-quit
+powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 06-creations-change
+
+# Then compare the steps
+python compare_snapshots.py</code></pre><p>Here is part of the comparison from our test:</p><pre><code>===== 00-start -&gt; 01-menu
+Plugins.txt: rewritten (lines added or removed)
+    -# PluginsTxtSnapshot marker - safe to delete
+ContentCatalog.txt: not changed
+===== 02-creations-look -&gt; 03-continue
+Plugins.txt: not rewritten
+ContentCatalog.txt: changed
+    (one line for each installed Creation: its ID, then &quot;Timestamp changed&quot;)
+===== 03-continue -&gt; 04-load-save
+Plugins.txt: not rewritten
+ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> add <code>-Verbose</code> to a snapshot command. It prints and logs each file it read or couldn't find to <code>snapshot.log</code> in the output folder. <code>python compare_snapshots.py --verbose</code> writes <code>compare.log</code> there too.</p><p><b>Afterward,</b> deploy from your mod manager again to put back its order. The marker line is harmless if it's still there, and a copy of the original Plugins.txt is in <code>PluginsTxtTest\Plugins.txt.backup</code>.</p><details><summary>PluginsTxtSnapshot.ps1 (MIT license)</summary><pre><code>&lt;#
+.SYNOPSIS
+  Copy Starfield&#x27;s load-order files after one test step, with times and checksums.
+
+.DESCRIPTION
+  Copies Plugins.txt and ContentCatalog.txt (from %LOCALAPPDATA%\Starfield) and StarfieldCustom.ini (from
+  Documents\My Games\Starfield) into &lt;OutDir&gt;\&lt;Step&gt;\, and writes info.txt there with each file&#x27;s modified time,
+  size and SHA256. It only reads those files, except with -AddMarker.
+
+  -AddMarker (use it on the first step only) backs up Plugins.txt to &lt;OutDir&gt;\Plugins.txt.backup, then adds one
+  comment line. The game ignores lines that start with #, but when it rewrites Plugins.txt it writes only its own
+  header and plugin lines, so the marker disappearing means the game rewrote the file.
+
+  Run it from the Windows account you play on: it reads that account&#x27;s own folders.
+
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 00-start -AddMarker
+
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File .\PluginsTxtSnapshot.ps1 01-menu -Verbose
+#&gt;
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory = $true, Position = 0)][string]$Step,
+  [switch]$AddMarker,
+  [string]$OutDir = (Join-Path ([Environment]::GetFolderPath(&#x27;Desktop&#x27;)) &#x27;PluginsTxtTest&#x27;)
+)
+$ErrorActionPreference = &#x27;Stop&#x27;
+
+if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27;) {
+  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: step name &#x27;$Step&#x27; can only use letters, digits, dots, dashes and underscores (for example 01-menu).&quot;)
+  exit 2
+}
+
+$app   = Join-Path $env:LOCALAPPDATA &#x27;Starfield&#x27;
+$docs  = Join-Path ([Environment]::GetFolderPath(&#x27;MyDocuments&#x27;)) &#x27;My Games\Starfield&#x27;
+$files = @(
+  (Join-Path $app  &#x27;Plugins.txt&#x27;),
+  (Join-Path $app  &#x27;ContentCatalog.txt&#x27;),
+  (Join-Path $docs &#x27;StarfieldCustom.ini&#x27;)
+)
+$plugins = $files[0]
+$marker  = &#x27;# PluginsTxtSnapshot marker - safe to delete&#x27;
+$out     = Join-Path $OutDir $Step
+$log     = Join-Path $OutDir &#x27;snapshot.log&#x27;
+
+New-Item -ItemType Directory -Force $out | Out-Null
+
+function Write-Log([string]$Text) {
+  Write-Verbose $Text
+  if ($VerbosePreference -ne &#x27;SilentlyContinue&#x27;) {
+    Add-Content -Path $log -Value &quot;$(Get-Date -Format &#x27;yyyy-MM-dd HH:mm:ss&#x27;) [$Step] $Text&quot;
+  }
+}
+
+Write-Log &quot;Output folder: $out&quot;
+Write-Log &quot;Reading Plugins.txt and ContentCatalog.txt from $app; StarfieldCustom.ini from $docs&quot;
+
+if ($AddMarker) {
+  if (-not (Test-Path $plugins)) {
+    [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again.&quot;)
+    exit 1
+  }
+  $backup = Join-Path $OutDir &#x27;Plugins.txt.backup&#x27;
+  Copy-Item $plugins $backup -Force
+  Add-Content -Path $plugins -Value $marker
+  Write-Host &quot;Backed up Plugins.txt to $backup and added the marker line.&quot;
+  Write-Log &quot;Marker added; backup at $backup&quot;
+}
+
+$info = @(
+  &quot;Step: $Step&quot;,
+  &quot;Taken: $(Get-Date -Format &#x27;yyyy-MM-dd HH:mm:ss&#x27;)&quot;,
+  &quot;Starfield running: $([bool](Get-Process Starfield -ErrorAction SilentlyContinue))&quot;,
+  &quot;Vortex running: $([bool](Get-Process Vortex -ErrorAction SilentlyContinue))&quot;,
+  &quot;Mod Organizer running: $([bool](Get-Process ModOrganizer -ErrorAction SilentlyContinue))&quot;,
+  &quot;&quot;
+)
+foreach ($f in $files) {
+  if (Test-Path $f) {
+    $i = Get-Item $f
+    Copy-Item $f $out -Force
+    $line = &quot;$($i.Name): modified $($i.LastWriteTime.ToString(&#x27;yyyy-MM-dd HH:mm:ss&#x27;)), $($i.Length) bytes, SHA256 $((Get-FileHash $f).Hash)&quot;
+    Write-Log &quot;Copied $f&quot;
+  } else {
+    $line = &quot;$(Split-Path $f -Leaf): not found at $f&quot;
+    Write-Log &quot;Not found: $f&quot;
+  }
+  $info += $line
+}
+if (Test-Path $plugins) {
+  $info += &#x27;&#x27;, &quot;Marker line present: $((Get-Content $plugins) -contains $marker)&quot;
+}
+$info | Set-Content (Join-Path $out &#x27;info.txt&#x27;)
+$info | ForEach-Object { Write-Host $_ }
+Write-Host &quot;Saved to $out&quot;
+exit 0
+</code></pre></details><details><summary>compare_snapshots.py (MIT license)</summary><pre><code>&quot;&quot;&quot;Compare the step folders made by PluginsTxtSnapshot.ps1.
+
+For each pair of steps in name order it reports:
+  - whether Plugins.txt was rewritten (its modified time changed) and how its lines changed,
+  - whether ContentCatalog.txt changed, field by field.
+
+Usage:
+  python compare_snapshots.py [FOLDER] [--verbose]
+
+FOLDER defaults to PluginsTxtTest on your Desktop. --verbose also writes compare.log in FOLDER.
+Exit codes: 0 compared; 1 folder missing or fewer than two steps; 2 wrong arguments.
+It only reads the snapshot folders.
+&quot;&quot;&quot;
+import argparse
+import difflib
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+LOG = []
+
+
+def log(msg):
+    LOG.append(msg)
+
+
+def lines(p):
+    if not p.exists():
+        return None
+    return p.read_text(encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;).splitlines()
+
+
+def mtime(step, name):
+    info = step / &quot;info.txt&quot;
+    if not info.exists():
+        return None
+    m = re.search(re.escape(name) + r&quot;: modified ([0-9-]+ [0-9:]+)&quot;, info.read_text(encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;))
+    return m.group(1) if m else None
+
+
+def catalog_diff(pa, pb):
+    try:
+        ja = json.loads(pa.read_text(encoding=&quot;utf-8&quot;))
+        jb = json.loads(pb.read_text(encoding=&quot;utf-8&quot;))
+    except (OSError, ValueError) as ex:
+        return [f&quot;    could not read as JSON ({ex}); compare the two files by hand&quot;]
+    out = []
+    for k in sorted(set(ja) | set(jb)):
+        va, vb = ja.get(k), jb.get(k)
+        if va == vb:
+            continue
+        if isinstance(va, dict) and isinstance(vb, dict):
+            fields = [f for f in sorted(set(va) | set(vb)) if va.get(f) != vb.get(f)]
+            out.append(f&quot;    {k}: {&#x27;, &#x27;.join(fields)} changed&quot;)
+        else:
+            out.append(f&quot;    {k}: {&#x27;added&#x27; if va is None else &#x27;removed&#x27; if vb is None else &#x27;changed&#x27;}&quot;)
+    return out
+
+
+def compare(a, b):
+    print(f&quot;===== {a.name} -&gt; {b.name}&quot;)
+    ta, tb = mtime(a, &quot;Plugins.txt&quot;), mtime(b, &quot;Plugins.txt&quot;)
+    pa, pb = lines(a / &quot;Plugins.txt&quot;), lines(b / &quot;Plugins.txt&quot;)
+    log(f&quot;{a.name} -&gt; {b.name}: Plugins.txt modified {ta} -&gt; {tb}&quot;)
+    if pa is None or pb is None:
+        print(&quot;Plugins.txt: missing from one of the steps&quot;)
+    else:
+        rewritten = ta != tb
+        if pa == pb:
+            print(f&quot;Plugins.txt: {&#x27;rewritten (new modified time), same text&#x27; if rewritten else &#x27;not rewritten&#x27;}&quot;)
+        else:
+            kind = &quot;same lines, new order&quot; if sorted(pa) == sorted(pb) else &quot;lines added or removed&quot;
+            print(f&quot;Plugins.txt: rewritten ({kind})&quot;)
+            for d in difflib.unified_diff(pa, pb, lineterm=&quot;&quot;, n=0):
+                if d.startswith((&quot;+&quot;, &quot;-&quot;)) and not d.startswith((&quot;+++&quot;, &quot;---&quot;)):
+                    print(&quot;   &quot;, d)
+    ca, cb = a / &quot;ContentCatalog.txt&quot;, b / &quot;ContentCatalog.txt&quot;
+    if ca.exists() and cb.exists():
+        if ca.read_bytes() == cb.read_bytes():
+            print(&quot;ContentCatalog.txt: not changed&quot;)
+        else:
+            print(&quot;ContentCatalog.txt: changed&quot;)
+            for d in catalog_diff(ca, cb):
+                print(d)
+    else:
+        print(&quot;ContentCatalog.txt: missing from one of the steps&quot;)
+
+
+def main(argv):
+    desk = Path(os.path.expanduser(&quot;~&quot;)) / &quot;Desktop&quot; / &quot;PluginsTxtTest&quot;
+    ap = argparse.ArgumentParser(description=&quot;Compare PluginsTxtSnapshot.ps1 step folders.&quot;)
+    ap.add_argument(&quot;folder&quot;, nargs=&quot;?&quot;, default=str(desk), help=&quot;snapshot folder (default: %(default)s)&quot;)
+    ap.add_argument(&quot;--verbose&quot;, action=&quot;store_true&quot;, help=&quot;also write compare.log in the folder&quot;)
+    args = ap.parse_args(argv)
+    root = Path(args.folder)
+    if not root.is_dir():
+        print(f&quot;compare_snapshots: folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.&quot;,
+              file=sys.stderr)
+        return 1
+    steps = sorted(p for p in root.iterdir() if p.is_dir())
+    log(f&quot;folder {root}: steps {[s.name for s in steps]}&quot;)
+    if len(steps) &lt; 2:
+        print(f&quot;compare_snapshots: {root} has {len(steps)} step folder(s); take at least two snapshots first.&quot;,
+              file=sys.stderr)
+        return 1
+    for a, b in zip(steps, steps[1:]):
+        compare(a, b)
+    if args.verbose:
+        (root / &quot;compare.log&quot;).write_text(&quot;\n&quot;.join(LOG) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
+        print(f&quot;log: {root / &#x27;compare.log&#x27;}&quot;)
+    return 0
+
+
+if __name__ == &quot;__main__&quot;:
+    sys.exit(main(sys.argv[1:]))
+</code></pre></details></section>
+
+      <footer><p><a href="https://github.com/taosecurity" target="_blank" rel="noopener">Richard Bejtlich</a> of Richard Presents Starfield Essentials made this page: <a href="https://www.youtube.com/@RichardBejtlich" target="_blank" rel="noopener">youtube.com/@RichardBejtlich</a>. I am the developer, and Claude is the programmer.</p><p>The code check used <a href="https://github.com/NationalSecurityAgency/ghidra" target="_blank" rel="noopener">Ghidra</a> (NSA), the <a href="https://github.com/1001Bits/BethesdaGhidraScripts" target="_blank" rel="noopener">Bethesda Ghidra Scripts</a> by 1001Bits, and <a href="https://github.com/0xeb/ghidrasql" target="_blank" rel="noopener">GhidraSQL</a> by Elias Bachaalany. SFSE is by Ian Patterson, Stephen Abel and Expired. The page names functions, addresses and strings and shows no game code. The page layout and both scripts are MIT licensed: <a href="https://github.com/taosecurity/starfield-load-order-facts" target="_blank" rel="noopener">github.com/taosecurity/starfield-load-order-facts</a>.</p><p>This is an unofficial page, not made or endorsed by Bethesda. Starfield is a trademark of ZeniMax Media.</p></footer>
+    </div>
+  </main>
+</div>
+<script>
+// Highlight the menu link for the part of the page in view.
+(function () {
+  var links = [].slice.call(document.querySelectorAll('.rail a[href^="#"]'));
+  var targets = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  var current = null, queued = false;
+  function update() {
+    queued = false;
+    var id = targets[0].id, bottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    for (var i = 0; i < targets.length; i++) { if (targets[i].getBoundingClientRect().top <= 100) id = targets[i].id; }
+    if (bottom) id = targets[targets.length - 1].id;
+    if (id === current) return;
+    current = id;
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+  }
+  function queue() { if (!queued) { queued = true; requestAnimationFrame(update); } }
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue);
+  update();
+})();
+</script>
+
+</body>
+</html>
