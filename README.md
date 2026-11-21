@@ -47,6 +47,8 @@ What's new: see the top of the [live page](https://taosecurity.github.io/starfie
 
 Close Vortex or MO2 before the test, so only the game can change the files, and run the snapshot script from the Windows account you play on. Snapshots go to `PluginsTxtTest` on your Desktop unless you add `-OutDir <folder>`. Pass the same folder to `compare_snapshots.py` if you change it. Afterward, deploy from your mod manager to put back its order.
 
+For MO2, point the script at your profile folder, which holds MO2's own `plugins.txt`: add `-PluginsDir "<MO2 folder>\profiles\<profile>"` to each snapshot command. A new test in a folder that already holds one moves the earlier test into a dated `earlier-test-...` folder.
+
 ## Words used here
 
 - **Plugin:** a mod's data file (`.esm`, `.esp` or `.esl`).

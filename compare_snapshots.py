@@ -38,8 +38,19 @@ def mtime(step, name):
     info = step / "info.txt"
     if not info.exists():
         return None
-    m = re.search(re.escape(name) + r": modified ([0-9-]+ [0-9:]+)", info.read_text(encoding="utf-8", errors="replace"))
-    return m.group(1) if m else None
+    m = re.search(re.escape(name) + r": modified ([0-9-]+ [0-9:]+)(?:, ticks (\d+))?",
+                  info.read_text(encoding="utf-8", errors="replace"))
+    if not m:
+        return None
+    # (ticks or None, time text). Ticks are 100-nanosecond units; older snapshots only have whole seconds.
+    return m.group(2), m.group(1)
+
+
+def same_time(ta, tb):
+    """Compare by ticks when both steps recorded them, otherwise by the whole-second time text."""
+    if ta[0] and tb[0]:
+        return ta[0] == tb[0]
+    return ta[1] == tb[1]
 
 
 def desktop():
@@ -115,20 +126,22 @@ def compare(a, b):
         print(f"Plugins.txt: modified time unknown for {which} (see info.txt there); can't tell whether it was "
               "rewritten. Take that step's snapshot again.")
     else:
-        rewritten = ta != tb
+        rewritten = not same_time(ta, tb)
         if pa == pb:
             print(f"Plugins.txt: {'rewritten (new modified time), same text' if rewritten else 'not rewritten'}")
         elif not rewritten:
-            print(f"Plugins.txt: text differs but the modified time didn't change ({ta}); one copy may have been "
+            print(f"Plugins.txt: text differs but the modified time didn't change ({ta[1]}); one copy may have been "
                   "taken while the file was being written. Compare the two copies by hand:")
             for d in changed_lines(pa, pb):
                 print("   ", d)
         else:
-            bare = lambda ls: sorted(x.lstrip("*") for x in ls)
+            strip = lambda ls: [x.lstrip("*") for x in ls]
             if sorted(pa) == sorted(pb):
                 kind = "same lines, new order"
-            elif bare(pa) == bare(pb):
+            elif strip(pa) == strip(pb):
                 kind = "plugins enabled or disabled"
+            elif sorted(strip(pa)) == sorted(strip(pb)):
+                kind = "plugins enabled or disabled, and order changed"
             else:
                 kind = "lines added or removed"
             print(f"Plugins.txt: rewritten ({kind})")
@@ -140,7 +153,7 @@ def compare(a, b):
             print("ContentCatalog.txt: not changed")
         else:
             print("ContentCatalog.txt: changed")
-            for d in catalog_diff(ca, cb):
+            for d in catalog_diff(ca, cb) or ["    same JSON content (formatting only)"]:
                 print(d)
     else:
         print("ContentCatalog.txt: missing from one of the steps")
@@ -190,7 +203,7 @@ def write_log(root, verbose):
     target = (root if root.is_dir() else Path.cwd()) / "compare.log"
     try:
         target.write_text("\n".join(LOG) + "\n", encoding="utf-8")
-        print(f"log: {target}")
+        print(f"log: {target}", file=sys.stderr)
     except OSError as ex:
         print(f"compare_snapshots: could not write {target} ({ex})", file=sys.stderr)
 

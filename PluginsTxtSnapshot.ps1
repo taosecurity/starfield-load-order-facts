@@ -11,8 +11,10 @@
   comment line. The game ignores lines that start with #, but when it rewrites Plugins.txt it writes only its own
   header and plugin lines, so the marker disappearing means the game rewrote the file. If the marker is still in
   Plugins.txt, the test is already running: the marker isn't added twice, and the backup is kept (or made from the
-  file without the marker if it's missing). Otherwise a new test starts: an older backup in the folder is renamed
-  with the date and time of the new test, and a fresh backup is made.
+  file without the marker if it's missing). Otherwise a new test starts: the earlier test's backup and step folders
+  move into <OutDir>\earlier-test-<date and time>, and a fresh backup is made.
+
+  -PluginsDir and -IniDir change where the files are read from, for example an MO2 profile folder.
 
   Run it from the Windows account you play on: it reads that account's own folders.
 
@@ -26,7 +28,11 @@
 param(
   [Parameter(Mandatory = $true, Position = 0)][string]$Step,
   [switch]$AddMarker,
-  [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'PluginsTxtTest')
+  [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'PluginsTxtTest'),
+  # Folder that holds Plugins.txt and ContentCatalog.txt. For an MO2 profile, use <MO2 folder>\profiles\<profile>.
+  [string]$PluginsDir = (Join-Path $env:LOCALAPPDATA 'Starfield'),
+  # Folder that holds StarfieldCustom.ini (MO2 profiles with their own INI files keep it in the profile folder).
+  [string]$IniDir = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games\Starfield')
 )
 $ErrorActionPreference = 'Stop'
 $inv = [Globalization.CultureInfo]::InvariantCulture
@@ -59,8 +65,9 @@ if ($Step -notmatch '^[A-Za-z0-9._-]+$' -or $Step -notmatch '[A-Za-z0-9]' -or $S
                  "script uses (snapshot.log, Plugins.txt.backup). Example: 01-menu.") 2
 }
 
-$app   = Join-Path $env:LOCALAPPDATA 'Starfield'
-$docs  = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games\Starfield'
+$app   = $PluginsDir
+$docs  = $IniDir
+$latin1 = [Text.Encoding]::GetEncoding(28591)   # maps every byte to one character and back unchanged
 $files = @(
   (Join-Path $app  'Plugins.txt'),
   (Join-Path $app  'ContentCatalog.txt'),
@@ -104,20 +111,30 @@ if ($AddMarker) {
         Write-Log "Marker already present; backup kept"
       } else {
         # No backup here (new folder, or it was deleted): save the file without the marker line, which is the original.
-        $orig = (Get-Content -LiteralPath $plugins) | Where-Object { $_.Trim() -ne $marker }
-        Set-Content -LiteralPath $backup -Value $orig
-        Write-Host "No backup was in this folder, so saved Plugins.txt without the marker line to $backup."
+        # Remove only the marker line, byte for byte, so the encoding and line endings stay as they were.
+        $text = [IO.File]::ReadAllText($plugins, $latin1)
+        $orig = [regex]::Replace($text, '(?m)^[ \t]*' + [regex]::Escape($marker) + '[ \t]*(\r?\n|$)', '')
+        [IO.File]::WriteAllText($backup, $orig, $latin1)
+        Write-Host ("No backup was in this folder, so saved Plugins.txt without the marker line to $backup. It matches " +
+                    "the original unless the original's last line had no line break (the game always writes one).")
         Write-Log "Marker already present; backup made from the file without the marker"
       }
     } else {
-      if (Test-Path -LiteralPath $backup) {
+      # A new test starts: move the earlier test's backup and step folders into a dated folder, so the
+      # comparison never mixes two tests. (compare_snapshots.py only reads folders that hold info.txt.)
+      $earlierSteps = @(Get-ChildItem -LiteralPath $OutDir -Directory |
+                        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'info.txt') })
+      if ((Test-Path -LiteralPath $backup) -or $earlierSteps.Count -gt 0) {
         $stamp = (Get-Date).ToString('yyyyMMdd-HHmmss', $inv)
-        $old = Join-Path $OutDir "Plugins.txt.backup-$stamp"
+        $archive = Join-Path $OutDir "earlier-test-$stamp"
         $n = 1
-        while (Test-Path -LiteralPath $old) { $old = Join-Path $OutDir "Plugins.txt.backup-$stamp-$n"; $n++ }
-        Move-Item -LiteralPath $backup -Destination $old
-        Write-Host "Renamed the backup from an earlier test to $old."
-        Write-Log "Earlier backup renamed to $old"
+        while (Test-Path -LiteralPath $archive) { $archive = Join-Path $OutDir "earlier-test-$stamp-$n"; $n++ }
+        New-Item -ItemType Directory -Path $archive | Out-Null
+        if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $archive }
+        foreach ($d in $earlierSteps) { Move-Item -LiteralPath $d.FullName -Destination $archive }
+        New-Item -ItemType Directory -Force -Path $out | Out-Null
+        Write-Host "Moved the earlier test's backup and $($earlierSteps.Count) step folder(s) to $archive."
+        Write-Log "Earlier test moved to $archive"
       }
       Copy-Item -LiteralPath $plugins -Destination $backup
       Write-Host "Backed up Plugins.txt to $backup."
@@ -149,9 +166,10 @@ foreach ($f in $files) {
   if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
   if (Test-Path -LiteralPath $f -PathType Leaf) {
     try {
-      $i = Get-Item -LiteralPath $f
       Copy-Item -LiteralPath $f -Destination $copy -Force
-      $line = "${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash -LiteralPath $copy).Hash)"
+      # Time, size and hash all come from the copy (Copy-Item keeps the modified time), so they always match.
+      $i = Get-Item -LiteralPath $copy
+      $line = "${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), ticks $($i.LastWriteTimeUtc.Ticks), $($i.Length) bytes, SHA256 $((Get-FileHash -LiteralPath $copy).Hash)"
       Write-Log "Copied $f"
     } catch {
       if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }

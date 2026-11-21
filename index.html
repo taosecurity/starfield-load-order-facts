@@ -163,7 +163,7 @@ blockquote{margin:0;padding:10px 14px;border-left:4px solid hsl(var(--h) 45% 55%
   <main>
     <div class="col">
       <header class="intro" id="top">
-        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:44 UTC</p>
+        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:47 UTC</p>
         <h1>Do Vortex mods and Creations really have separate load orders?</h1>
         <p class="lede">A Facebook comment claimed that Vortex mods load through the script extender, that Creations load when you load a save, and that this gives Starfield two load orders. We checked the claim twice: by reading the game's own code, and by watching Plugins.txt in the game step by step. This page shows every step, what each one found, and how you can repeat the test on your own PC.</p>
         <p class="byline">By <a href="https://github.com/taosecurity" target="_blank" rel="noopener">Richard Bejtlich</a>, <a href="https://www.youtube.com/@RichardBejtlich" target="_blank" rel="noopener">Richard Presents Starfield Essentials</a> on YouTube</p>
@@ -311,7 +311,7 @@ ContentCatalog.txt: changed
     (one line for each installed Creation: its ID, then &quot;Timestamp changed&quot;)
 ===== 03-continue -&gt; 04-load-save
 Plugins.txt: not rewritten
-ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> add <code>-Verbose</code> to a snapshot command. It prints and logs each file it read or couldn't find to <code>snapshot.log</code> in the output folder. <code>python compare_snapshots.py --verbose</code> writes <code>compare.log</code> there too.</p><p><b>Afterward,</b> deploy from your mod manager again to put back its order. The marker line is harmless if it's still there. The Plugins.txt you had when the test started is saved as <code>Plugins.txt.backup</code> in the output folder. When you start a new test in the same folder, the older backup is kept under a dated name.</p><details><summary>PluginsTxtSnapshot.ps1 (MIT license)</summary><pre><code>&lt;#
+ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> add <code>-Verbose</code> to a snapshot command. It prints and logs each file it read or couldn't find to <code>snapshot.log</code> in the output folder. <code>python compare_snapshots.py --verbose</code> writes <code>compare.log</code> there too.</p><p><b>Afterward,</b> deploy from your mod manager again to put back its order. The marker line is harmless if it's still there. The Plugins.txt you had when the test started is saved as <code>Plugins.txt.backup</code> in the output folder. When you start a new test in the same folder, the earlier test's backup and step folders move into a dated <code>earlier-test-...</code> folder, so the two tests never mix. <b>MO2 users</b> can point the script at the profile folder with <code>-PluginsDir "&lt;MO2 folder&gt;\profiles\&lt;profile&gt;"</code>.</p><details><summary>PluginsTxtSnapshot.ps1 (MIT license)</summary><pre><code>&lt;#
 .SYNOPSIS
   Copy Starfield&#x27;s load-order files after one test step, with times and checksums.
 
@@ -324,8 +324,10 @@ ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> a
   comment line. The game ignores lines that start with #, but when it rewrites Plugins.txt it writes only its own
   header and plugin lines, so the marker disappearing means the game rewrote the file. If the marker is still in
   Plugins.txt, the test is already running: the marker isn&#x27;t added twice, and the backup is kept (or made from the
-  file without the marker if it&#x27;s missing). Otherwise a new test starts: an older backup in the folder is renamed
-  with the date and time of the new test, and a fresh backup is made.
+  file without the marker if it&#x27;s missing). Otherwise a new test starts: the earlier test&#x27;s backup and step folders
+  move into &lt;OutDir&gt;\earlier-test-&lt;date and time&gt;, and a fresh backup is made.
+
+  -PluginsDir and -IniDir change where the files are read from, for example an MO2 profile folder.
 
   Run it from the Windows account you play on: it reads that account&#x27;s own folders.
 
@@ -339,7 +341,11 @@ ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> a
 param(
   [Parameter(Mandatory = $true, Position = 0)][string]$Step,
   [switch]$AddMarker,
-  [string]$OutDir = (Join-Path ([Environment]::GetFolderPath(&#x27;Desktop&#x27;)) &#x27;PluginsTxtTest&#x27;)
+  [string]$OutDir = (Join-Path ([Environment]::GetFolderPath(&#x27;Desktop&#x27;)) &#x27;PluginsTxtTest&#x27;),
+  # Folder that holds Plugins.txt and ContentCatalog.txt. For an MO2 profile, use &lt;MO2 folder&gt;\profiles\&lt;profile&gt;.
+  [string]$PluginsDir = (Join-Path $env:LOCALAPPDATA &#x27;Starfield&#x27;),
+  # Folder that holds StarfieldCustom.ini (MO2 profiles with their own INI files keep it in the profile folder).
+  [string]$IniDir = (Join-Path ([Environment]::GetFolderPath(&#x27;MyDocuments&#x27;)) &#x27;My Games\Starfield&#x27;)
 )
 $ErrorActionPreference = &#x27;Stop&#x27;
 $inv = [Globalization.CultureInfo]::InvariantCulture
@@ -372,8 +378,9 @@ if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27; -or $Step -notmatch &#x27;[A-Z
                  &quot;script uses (snapshot.log, Plugins.txt.backup). Example: 01-menu.&quot;) 2
 }
 
-$app   = Join-Path $env:LOCALAPPDATA &#x27;Starfield&#x27;
-$docs  = Join-Path ([Environment]::GetFolderPath(&#x27;MyDocuments&#x27;)) &#x27;My Games\Starfield&#x27;
+$app   = $PluginsDir
+$docs  = $IniDir
+$latin1 = [Text.Encoding]::GetEncoding(28591)   # maps every byte to one character and back unchanged
 $files = @(
   (Join-Path $app  &#x27;Plugins.txt&#x27;),
   (Join-Path $app  &#x27;ContentCatalog.txt&#x27;),
@@ -417,20 +424,30 @@ if ($AddMarker) {
         Write-Log &quot;Marker already present; backup kept&quot;
       } else {
         # No backup here (new folder, or it was deleted): save the file without the marker line, which is the original.
-        $orig = (Get-Content -LiteralPath $plugins) | Where-Object { $_.Trim() -ne $marker }
-        Set-Content -LiteralPath $backup -Value $orig
-        Write-Host &quot;No backup was in this folder, so saved Plugins.txt without the marker line to $backup.&quot;
+        # Remove only the marker line, byte for byte, so the encoding and line endings stay as they were.
+        $text = [IO.File]::ReadAllText($plugins, $latin1)
+        $orig = [regex]::Replace($text, &#x27;(?m)^[ \t]*&#x27; + [regex]::Escape($marker) + &#x27;[ \t]*(\r?\n|$)&#x27;, &#x27;&#x27;)
+        [IO.File]::WriteAllText($backup, $orig, $latin1)
+        Write-Host (&quot;No backup was in this folder, so saved Plugins.txt without the marker line to $backup. It matches &quot; +
+                    &quot;the original unless the original&#x27;s last line had no line break (the game always writes one).&quot;)
         Write-Log &quot;Marker already present; backup made from the file without the marker&quot;
       }
     } else {
-      if (Test-Path -LiteralPath $backup) {
+      # A new test starts: move the earlier test&#x27;s backup and step folders into a dated folder, so the
+      # comparison never mixes two tests. (compare_snapshots.py only reads folders that hold info.txt.)
+      $earlierSteps = @(Get-ChildItem -LiteralPath $OutDir -Directory |
+                        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName &#x27;info.txt&#x27;) })
+      if ((Test-Path -LiteralPath $backup) -or $earlierSteps.Count -gt 0) {
         $stamp = (Get-Date).ToString(&#x27;yyyyMMdd-HHmmss&#x27;, $inv)
-        $old = Join-Path $OutDir &quot;Plugins.txt.backup-$stamp&quot;
+        $archive = Join-Path $OutDir &quot;earlier-test-$stamp&quot;
         $n = 1
-        while (Test-Path -LiteralPath $old) { $old = Join-Path $OutDir &quot;Plugins.txt.backup-$stamp-$n&quot;; $n++ }
-        Move-Item -LiteralPath $backup -Destination $old
-        Write-Host &quot;Renamed the backup from an earlier test to $old.&quot;
-        Write-Log &quot;Earlier backup renamed to $old&quot;
+        while (Test-Path -LiteralPath $archive) { $archive = Join-Path $OutDir &quot;earlier-test-$stamp-$n&quot;; $n++ }
+        New-Item -ItemType Directory -Path $archive | Out-Null
+        if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $archive }
+        foreach ($d in $earlierSteps) { Move-Item -LiteralPath $d.FullName -Destination $archive }
+        New-Item -ItemType Directory -Force -Path $out | Out-Null
+        Write-Host &quot;Moved the earlier test&#x27;s backup and $($earlierSteps.Count) step folder(s) to $archive.&quot;
+        Write-Log &quot;Earlier test moved to $archive&quot;
       }
       Copy-Item -LiteralPath $plugins -Destination $backup
       Write-Host &quot;Backed up Plugins.txt to $backup.&quot;
@@ -462,9 +479,10 @@ foreach ($f in $files) {
   if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
   if (Test-Path -LiteralPath $f -PathType Leaf) {
     try {
-      $i = Get-Item -LiteralPath $f
       Copy-Item -LiteralPath $f -Destination $copy -Force
-      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash -LiteralPath $copy).Hash)&quot;
+      # Time, size and hash all come from the copy (Copy-Item keeps the modified time), so they always match.
+      $i = Get-Item -LiteralPath $copy
+      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), ticks $($i.LastWriteTimeUtc.Ticks), $($i.Length) bytes, SHA256 $((Get-FileHash -LiteralPath $copy).Hash)&quot;
       Write-Log &quot;Copied $f&quot;
     } catch {
       if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
@@ -527,8 +545,19 @@ def mtime(step, name):
     info = step / &quot;info.txt&quot;
     if not info.exists():
         return None
-    m = re.search(re.escape(name) + r&quot;: modified ([0-9-]+ [0-9:]+)&quot;, info.read_text(encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;))
-    return m.group(1) if m else None
+    m = re.search(re.escape(name) + r&quot;: modified ([0-9-]+ [0-9:]+)(?:, ticks (\d+))?&quot;,
+                  info.read_text(encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;))
+    if not m:
+        return None
+    # (ticks or None, time text). Ticks are 100-nanosecond units; older snapshots only have whole seconds.
+    return m.group(2), m.group(1)
+
+
+def same_time(ta, tb):
+    &quot;&quot;&quot;Compare by ticks when both steps recorded them, otherwise by the whole-second time text.&quot;&quot;&quot;
+    if ta[0] and tb[0]:
+        return ta[0] == tb[0]
+    return ta[1] == tb[1]
 
 
 def desktop():
@@ -604,20 +633,22 @@ def compare(a, b):
         print(f&quot;Plugins.txt: modified time unknown for {which} (see info.txt there); can&#x27;t tell whether it was &quot;
               &quot;rewritten. Take that step&#x27;s snapshot again.&quot;)
     else:
-        rewritten = ta != tb
+        rewritten = not same_time(ta, tb)
         if pa == pb:
             print(f&quot;Plugins.txt: {&#x27;rewritten (new modified time), same text&#x27; if rewritten else &#x27;not rewritten&#x27;}&quot;)
         elif not rewritten:
-            print(f&quot;Plugins.txt: text differs but the modified time didn&#x27;t change ({ta}); one copy may have been &quot;
+            print(f&quot;Plugins.txt: text differs but the modified time didn&#x27;t change ({ta[1]}); one copy may have been &quot;
                   &quot;taken while the file was being written. Compare the two copies by hand:&quot;)
             for d in changed_lines(pa, pb):
                 print(&quot;   &quot;, d)
         else:
-            bare = lambda ls: sorted(x.lstrip(&quot;*&quot;) for x in ls)
+            strip = lambda ls: [x.lstrip(&quot;*&quot;) for x in ls]
             if sorted(pa) == sorted(pb):
                 kind = &quot;same lines, new order&quot;
-            elif bare(pa) == bare(pb):
+            elif strip(pa) == strip(pb):
                 kind = &quot;plugins enabled or disabled&quot;
+            elif sorted(strip(pa)) == sorted(strip(pb)):
+                kind = &quot;plugins enabled or disabled, and order changed&quot;
             else:
                 kind = &quot;lines added or removed&quot;
             print(f&quot;Plugins.txt: rewritten ({kind})&quot;)
@@ -629,7 +660,7 @@ def compare(a, b):
             print(&quot;ContentCatalog.txt: not changed&quot;)
         else:
             print(&quot;ContentCatalog.txt: changed&quot;)
-            for d in catalog_diff(ca, cb):
+            for d in catalog_diff(ca, cb) or [&quot;    same JSON content (formatting only)&quot;]:
                 print(d)
     else:
         print(&quot;ContentCatalog.txt: missing from one of the steps&quot;)
@@ -679,7 +710,7 @@ def write_log(root, verbose):
     target = (root if root.is_dir() else Path.cwd()) / &quot;compare.log&quot;
     try:
         target.write_text(&quot;\n&quot;.join(LOG) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
-        print(f&quot;log: {target}&quot;)
+        print(f&quot;log: {target}&quot;, file=sys.stderr)
     except OSError as ex:
         print(f&quot;compare_snapshots: could not write {target} ({ex})&quot;, file=sys.stderr)
 
