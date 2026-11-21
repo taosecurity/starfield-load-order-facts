@@ -111,12 +111,18 @@ def compare(a, b):
     if pa is None or pb is None:
         print("Plugins.txt: missing from one of the steps")
     elif ta is None or tb is None:
-        which = a.name if ta is None else b.name
-        print(f"Plugins.txt: modified time unknown for {which} (see its info.txt); can't tell whether it was rewritten")
+        which = " and ".join(s.name for s, t in ((a, ta), (b, tb)) if t is None)
+        print(f"Plugins.txt: modified time unknown for {which} (see info.txt there); can't tell whether it was "
+              "rewritten. Take that step's snapshot again.")
     else:
         rewritten = ta != tb
         if pa == pb:
             print(f"Plugins.txt: {'rewritten (new modified time), same text' if rewritten else 'not rewritten'}")
+        elif not rewritten:
+            print(f"Plugins.txt: text differs but the modified time didn't change ({ta}); one copy may have been "
+                  "taken while the file was being written. Compare the two copies by hand:")
+            for d in changed_lines(pa, pb):
+                print("   ", d)
         else:
             bare = lambda ls: sorted(x.lstrip("*") for x in ls)
             if sorted(pa) == sorted(pb):
@@ -141,6 +147,12 @@ def compare(a, b):
 
 
 def main(argv):
+    # Plugin names can hold any character; never crash on a console or file that can't show them.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
     desk = desktop() / "PluginsTxtTest"
     ap = argparse.ArgumentParser(description="Compare PluginsTxtSnapshot.ps1 step folders.")
     ap.add_argument("folder", nargs="?", default=str(desk), help="snapshot folder (default: %(default)s)")
@@ -156,12 +168,17 @@ def main(argv):
 
     if not root.is_dir():
         return fail(f"folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.")
-    steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / "info.txt").exists()), key=step_key)
-    log(f"folder {root}: steps {[s.name for s in steps]}")
-    if len(steps) < 2:
-        return fail(f"{root} has {len(steps)} step folder(s) with info.txt; take at least two snapshots first.")
-    for a, b in zip(steps, steps[1:]):
-        compare(a, b)
+    try:
+        steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / "info.txt").exists()), key=step_key)
+        log(f"folder {root}: steps {[s.name for s in steps]}")
+        if len(steps) < 2:
+            return fail(f"{root} has {len(steps)} step folder(s) with info.txt; take at least two snapshots first.")
+        for a, b in zip(steps, steps[1:]):
+            compare(a, b)
+    except OSError as ex:
+        where = ex.filename or root
+        return fail(f"could not read {where} ({ex.strerror or ex}). If the folder is on OneDrive, make it "
+                    "'Always keep on this device', or copy it to a local folder and pass that folder.")
     write_log(root, args.verbose)
     return 0
 

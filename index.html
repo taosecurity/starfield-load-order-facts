@@ -163,7 +163,7 @@ blockquote{margin:0;padding:10px 14px;border-left:4px solid hsl(var(--h) 45% 55%
   <main>
     <div class="col">
       <header class="intro" id="top">
-        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:41 UTC</p>
+        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:44 UTC</p>
         <h1>Do Vortex mods and Creations really have separate load orders?</h1>
         <p class="lede">A Facebook comment claimed that Vortex mods load through the script extender, that Creations load when you load a save, and that this gives Starfield two load orders. We checked the claim twice: by reading the game's own code, and by watching Plugins.txt in the game step by step. This page shows every step, what each one found, and how you can repeat the test on your own PC.</p>
         <p class="byline">By <a href="https://github.com/taosecurity" target="_blank" rel="noopener">Richard Bejtlich</a>, <a href="https://www.youtube.com/@RichardBejtlich" target="_blank" rel="noopener">Richard Presents Starfield Essentials</a> on YouTube</p>
@@ -323,8 +323,9 @@ ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> a
   -AddMarker (use it on the first step only) backs up Plugins.txt to &lt;OutDir&gt;\Plugins.txt.backup, then adds one
   comment line. The game ignores lines that start with #, but when it rewrites Plugins.txt it writes only its own
   header and plugin lines, so the marker disappearing means the game rewrote the file. If the marker is still in
-  Plugins.txt, the test is already running: the backup is kept and no second marker is added. Otherwise a new
-  test starts: an older backup in the folder is renamed with its date, and a fresh backup is made.
+  Plugins.txt, the test is already running: the marker isn&#x27;t added twice, and the backup is kept (or made from the
+  file without the marker if it&#x27;s missing). Otherwise a new test starts: an older backup in the folder is renamed
+  with the date and time of the new test, and a fresh backup is made.
 
   Run it from the Windows account you play on: it reads that account&#x27;s own folders.
 
@@ -344,13 +345,14 @@ $ErrorActionPreference = &#x27;Stop&#x27;
 $inv = [Globalization.CultureInfo]::InvariantCulture
 $timeFmt = &#x27;yyyy-MM-dd HH\:mm\:ss&#x27;   # literal colons on every regional setting (compare_snapshots.py reads them)
 $log = Join-Path $OutDir &#x27;snapshot.log&#x27;
+# Every path goes through -LiteralPath, so [ and ] in a user name or folder are not read as wildcards.
 
 function Write-Log([string]$Text) {
   Write-Verbose $Text
   if ($VerbosePreference -ne &#x27;SilentlyContinue&#x27;) {
     try {
-      if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force $OutDir | Out-Null }
-      Add-Content -Path $log -Value &quot;$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text&quot;
+      if (-not (Test-Path -LiteralPath $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
+      Add-Content -LiteralPath $log -Value &quot;$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text&quot;
     } catch { Write-Verbose &quot;Could not write ${log}: $($_.Exception.Message)&quot; }
   }
 }
@@ -362,9 +364,12 @@ function Stop-Snapshot([string]$Text, [int]$Code) {
 }
 
 $reserved = &#x27;^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$&#x27;
-if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27; -or $Step -notmatch &#x27;[A-Za-z0-9]&#x27; -or $Step.EndsWith(&#x27;.&#x27;) -or $Step -match $reserved) {
+$ownFiles = &#x27;^(snapshot\.log|compare\.log|Plugins\.txt\.backup.*)$&#x27;
+if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27; -or $Step -notmatch &#x27;[A-Za-z0-9]&#x27; -or $Step.EndsWith(&#x27;.&#x27;) -or
+    $Step -match $reserved -or $Step -match $ownFiles) {
   Stop-Snapshot (&quot;step name &#x27;$Step&#x27; must use letters, digits, dots, dashes and underscores, contain a letter or &quot; +
-                 &quot;digit, not end with a dot, and not be a reserved Windows name such as CON or NUL (for example 01-menu).&quot;) 2
+                 &quot;digit, not end with a dot, and not be a reserved Windows name (such as CON) or a file name this &quot; +
+                 &quot;script uses (snapshot.log, Plugins.txt.backup). Example: 01-menu.&quot;) 2
 }
 
 $app   = Join-Path $env:LOCALAPPDATA &#x27;Starfield&#x27;
@@ -379,16 +384,16 @@ $marker  = &#x27;# PluginsTxtSnapshot marker - safe to delete&#x27;
 $out     = Join-Path $OutDir $Step
 
 try {
-  New-Item -ItemType Directory -Force $out | Out-Null
+  New-Item -ItemType Directory -Force -Path $out | Out-Null
 } catch {
   Stop-Snapshot &quot;could not create $out ($($_.Exception.Message)). Pick another folder with -OutDir.&quot; 1
 }
 
 function Test-Marker([string]$Path) {
-  # True, False, or &#x27;unknown&#x27; when the file can&#x27;t be read.
+  # True or False, or &#x27;unknown&#x27; when the file is missing or can&#x27;t be read.
   try {
-    if (-not (Test-Path $Path)) { return $false }
-    return [bool]((Get-Content $Path) | Where-Object { $_.Trim() -eq $marker })
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return &#x27;unknown&#x27; }
+    return [bool]((Get-Content -LiteralPath $Path) | Where-Object { $_.Trim() -eq $marker })
   } catch { return &#x27;unknown&#x27; }
 }
 
@@ -396,7 +401,7 @@ Write-Log &quot;Output folder: $out&quot;
 Write-Log &quot;Reading Plugins.txt and ContentCatalog.txt from $app; StarfieldCustom.ini from $docs&quot;
 
 if ($AddMarker) {
-  if (-not (Test-Path $plugins)) {
+  if (-not (Test-Path -LiteralPath $plugins -PathType Leaf)) {
     Stop-Snapshot &quot;no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again.&quot; 1
   }
   $backup = Join-Path $OutDir &#x27;Plugins.txt.backup&#x27;
@@ -406,16 +411,28 @@ if ($AddMarker) {
   }
   try {
     if ($hasMarker) {
-      Write-Host &quot;The marker line is already in Plugins.txt, so this test is still running: kept the backup and the marker.&quot;
-      Write-Log &quot;Marker already present; backup and marker kept&quot;
+      Write-Host &quot;The marker line is already in Plugins.txt, so this test is still running: the marker isn&#x27;t added again.&quot;
+      if (Test-Path -LiteralPath $backup -PathType Leaf) {
+        Write-Host &quot;Kept the backup at $backup.&quot;
+        Write-Log &quot;Marker already present; backup kept&quot;
+      } else {
+        # No backup here (new folder, or it was deleted): save the file without the marker line, which is the original.
+        $orig = (Get-Content -LiteralPath $plugins) | Where-Object { $_.Trim() -ne $marker }
+        Set-Content -LiteralPath $backup -Value $orig
+        Write-Host &quot;No backup was in this folder, so saved Plugins.txt without the marker line to $backup.&quot;
+        Write-Log &quot;Marker already present; backup made from the file without the marker&quot;
+      }
     } else {
-      if (Test-Path $backup) {
-        $old = Join-Path $OutDir (&quot;Plugins.txt.backup-&quot; + (Get-Item $backup).LastWriteTime.ToString(&#x27;yyyyMMdd-HHmmss&#x27;, $inv))
-        Move-Item $backup $old -Force
+      if (Test-Path -LiteralPath $backup) {
+        $stamp = (Get-Date).ToString(&#x27;yyyyMMdd-HHmmss&#x27;, $inv)
+        $old = Join-Path $OutDir &quot;Plugins.txt.backup-$stamp&quot;
+        $n = 1
+        while (Test-Path -LiteralPath $old) { $old = Join-Path $OutDir &quot;Plugins.txt.backup-$stamp-$n&quot;; $n++ }
+        Move-Item -LiteralPath $backup -Destination $old
         Write-Host &quot;Renamed the backup from an earlier test to $old.&quot;
         Write-Log &quot;Earlier backup renamed to $old&quot;
       }
-      Copy-Item $plugins $backup
+      Copy-Item -LiteralPath $plugins -Destination $backup
       Write-Host &quot;Backed up Plugins.txt to $backup.&quot;
       Write-Log &quot;Backup written to $backup&quot;
       # Start the marker on its own line even when the file doesn&#x27;t end with a line break.
@@ -442,15 +459,15 @@ foreach ($f in $files) {
   $name = Split-Path $f -Leaf
   $copy = Join-Path $out $name
   # Remove a copy left by an earlier run of this step, so a failed read never leaves stale text behind.
-  if (Test-Path $copy) { Remove-Item $copy -Force -ErrorAction SilentlyContinue }
-  if (Test-Path $f) {
+  if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
+  if (Test-Path -LiteralPath $f -PathType Leaf) {
     try {
-      $i = Get-Item $f
-      Copy-Item $f $out -Force
-      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash $copy).Hash)&quot;
+      $i = Get-Item -LiteralPath $f
+      Copy-Item -LiteralPath $f -Destination $copy -Force
+      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash -LiteralPath $copy).Hash)&quot;
       Write-Log &quot;Copied $f&quot;
     } catch {
-      if (Test-Path $copy) { Remove-Item $copy -Force -ErrorAction SilentlyContinue }
+      if (Test-Path -LiteralPath $copy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
       $line = &quot;${name}: could not read ($($_.Exception.Message)); take this step&#x27;s snapshot again&quot;
       Write-Log &quot;Could not read ${f}: $($_.Exception.Message)&quot;
     }
@@ -461,7 +478,12 @@ foreach ($f in $files) {
   $info += $line
 }
 $info += &#x27;&#x27;, &quot;Marker line present: $(Test-Marker (Join-Path $out &#x27;Plugins.txt&#x27;))&quot;
-$info | Set-Content (Join-Path $out &#x27;info.txt&#x27;)
+$infoFile = Join-Path $out &#x27;info.txt&#x27;
+try {
+  Set-Content -LiteralPath $infoFile -Value $info
+} catch {
+  Stop-Snapshot &quot;could not write $infoFile ($($_.Exception.Message)). Check that the drive has space and isn&#x27;t read-only, or pick another folder with -OutDir.&quot; 1
+}
 $info | ForEach-Object { Write-Host $_ }
 Write-Host &quot;Saved to $out&quot;
 exit 0
@@ -578,12 +600,18 @@ def compare(a, b):
     if pa is None or pb is None:
         print(&quot;Plugins.txt: missing from one of the steps&quot;)
     elif ta is None or tb is None:
-        which = a.name if ta is None else b.name
-        print(f&quot;Plugins.txt: modified time unknown for {which} (see its info.txt); can&#x27;t tell whether it was rewritten&quot;)
+        which = &quot; and &quot;.join(s.name for s, t in ((a, ta), (b, tb)) if t is None)
+        print(f&quot;Plugins.txt: modified time unknown for {which} (see info.txt there); can&#x27;t tell whether it was &quot;
+              &quot;rewritten. Take that step&#x27;s snapshot again.&quot;)
     else:
         rewritten = ta != tb
         if pa == pb:
             print(f&quot;Plugins.txt: {&#x27;rewritten (new modified time), same text&#x27; if rewritten else &#x27;not rewritten&#x27;}&quot;)
+        elif not rewritten:
+            print(f&quot;Plugins.txt: text differs but the modified time didn&#x27;t change ({ta}); one copy may have been &quot;
+                  &quot;taken while the file was being written. Compare the two copies by hand:&quot;)
+            for d in changed_lines(pa, pb):
+                print(&quot;   &quot;, d)
         else:
             bare = lambda ls: sorted(x.lstrip(&quot;*&quot;) for x in ls)
             if sorted(pa) == sorted(pb):
@@ -608,6 +636,12 @@ def compare(a, b):
 
 
 def main(argv):
+    # Plugin names can hold any character; never crash on a console or file that can&#x27;t show them.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors=&quot;backslashreplace&quot;)
+        except (AttributeError, ValueError):
+            pass
     desk = desktop() / &quot;PluginsTxtTest&quot;
     ap = argparse.ArgumentParser(description=&quot;Compare PluginsTxtSnapshot.ps1 step folders.&quot;)
     ap.add_argument(&quot;folder&quot;, nargs=&quot;?&quot;, default=str(desk), help=&quot;snapshot folder (default: %(default)s)&quot;)
@@ -623,12 +657,17 @@ def main(argv):
 
     if not root.is_dir():
         return fail(f&quot;folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.&quot;)
-    steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / &quot;info.txt&quot;).exists()), key=step_key)
-    log(f&quot;folder {root}: steps {[s.name for s in steps]}&quot;)
-    if len(steps) &lt; 2:
-        return fail(f&quot;{root} has {len(steps)} step folder(s) with info.txt; take at least two snapshots first.&quot;)
-    for a, b in zip(steps, steps[1:]):
-        compare(a, b)
+    try:
+        steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / &quot;info.txt&quot;).exists()), key=step_key)
+        log(f&quot;folder {root}: steps {[s.name for s in steps]}&quot;)
+        if len(steps) &lt; 2:
+            return fail(f&quot;{root} has {len(steps)} step folder(s) with info.txt; take at least two snapshots first.&quot;)
+        for a, b in zip(steps, steps[1:]):
+            compare(a, b)
+    except OSError as ex:
+        where = ex.filename or root
+        return fail(f&quot;could not read {where} ({ex.strerror or ex}). If the folder is on OneDrive, make it &quot;
+                    &quot;&#x27;Always keep on this device&#x27;, or copy it to a local folder and pass that folder.&quot;)
     write_log(root, args.verbose)
     return 0
 
