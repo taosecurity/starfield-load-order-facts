@@ -163,7 +163,7 @@ blockquote{margin:0;padding:10px 14px;border-left:4px solid hsl(var(--h) 45% 55%
   <main>
     <div class="col">
       <header class="intro" id="top">
-        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:37 UTC</p>
+        <p class="eyebrow">Starfield 1.16.244 (Steam) &middot; reverse engineering plus an in-game test &middot; checked 2026-11-21 &middot; page built 2026-11-21 21:41 UTC</p>
         <h1>Do Vortex mods and Creations really have separate load orders?</h1>
         <p class="lede">A Facebook comment claimed that Vortex mods load through the script extender, that Creations load when you load a save, and that this gives Starfield two load orders. We checked the claim twice: by reading the game's own code, and by watching Plugins.txt in the game step by step. This page shows every step, what each one found, and how you can repeat the test on your own PC.</p>
         <p class="byline">By <a href="https://github.com/taosecurity" target="_blank" rel="noopener">Richard Bejtlich</a>, <a href="https://www.youtube.com/@RichardBejtlich" target="_blank" rel="noopener">Richard Presents Starfield Essentials</a> on YouTube</p>
@@ -311,7 +311,7 @@ ContentCatalog.txt: changed
     (one line for each installed Creation: its ID, then &quot;Timestamp changed&quot;)
 ===== 03-continue -&gt; 04-load-save
 Plugins.txt: not rewritten
-ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> add <code>-Verbose</code> to a snapshot command. It prints and logs each file it read or couldn't find to <code>snapshot.log</code> in the output folder. <code>python compare_snapshots.py --verbose</code> writes <code>compare.log</code> there too.</p><p><b>Afterward,</b> deploy from your mod manager again to put back its order. The marker line is harmless if it's still there, and a copy of the original Plugins.txt is in <code>PluginsTxtTest\Plugins.txt.backup</code>.</p><details><summary>PluginsTxtSnapshot.ps1 (MIT license)</summary><pre><code>&lt;#
+ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> add <code>-Verbose</code> to a snapshot command. It prints and logs each file it read or couldn't find to <code>snapshot.log</code> in the output folder. <code>python compare_snapshots.py --verbose</code> writes <code>compare.log</code> there too.</p><p><b>Afterward,</b> deploy from your mod manager again to put back its order. The marker line is harmless if it's still there. The Plugins.txt you had when the test started is saved as <code>Plugins.txt.backup</code> in the output folder. When you start a new test in the same folder, the older backup is kept under a dated name.</p><details><summary>PluginsTxtSnapshot.ps1 (MIT license)</summary><pre><code>&lt;#
 .SYNOPSIS
   Copy Starfield&#x27;s load-order files after one test step, with times and checksums.
 
@@ -322,7 +322,9 @@ ContentCatalog.txt: not changed</code></pre><p><b>If a result looks wrong,</b> a
 
   -AddMarker (use it on the first step only) backs up Plugins.txt to &lt;OutDir&gt;\Plugins.txt.backup, then adds one
   comment line. The game ignores lines that start with #, but when it rewrites Plugins.txt it writes only its own
-  header and plugin lines, so the marker disappearing means the game rewrote the file.
+  header and plugin lines, so the marker disappearing means the game rewrote the file. If the marker is still in
+  Plugins.txt, the test is already running: the backup is kept and no second marker is added. Otherwise a new
+  test starts: an older backup in the folder is renamed with its date, and a fresh backup is made.
 
   Run it from the Windows account you play on: it reads that account&#x27;s own folders.
 
@@ -341,10 +343,28 @@ param(
 $ErrorActionPreference = &#x27;Stop&#x27;
 $inv = [Globalization.CultureInfo]::InvariantCulture
 $timeFmt = &#x27;yyyy-MM-dd HH\:mm\:ss&#x27;   # literal colons on every regional setting (compare_snapshots.py reads them)
+$log = Join-Path $OutDir &#x27;snapshot.log&#x27;
 
-if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27; -or $Step -notmatch &#x27;[A-Za-z0-9]&#x27;) {
-  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: step name &#x27;$Step&#x27; must use letters, digits, dots, dashes and underscores, with at least one letter or digit (for example 01-menu).&quot;)
-  exit 2
+function Write-Log([string]$Text) {
+  Write-Verbose $Text
+  if ($VerbosePreference -ne &#x27;SilentlyContinue&#x27;) {
+    try {
+      if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force $OutDir | Out-Null }
+      Add-Content -Path $log -Value &quot;$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text&quot;
+    } catch { Write-Verbose &quot;Could not write ${log}: $($_.Exception.Message)&quot; }
+  }
+}
+
+function Stop-Snapshot([string]$Text, [int]$Code) {
+  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: $Text&quot;)
+  Write-Log &quot;FAILED (exit $Code): $Text&quot;
+  exit $Code
+}
+
+$reserved = &#x27;^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$&#x27;
+if ($Step -notmatch &#x27;^[A-Za-z0-9._-]+$&#x27; -or $Step -notmatch &#x27;[A-Za-z0-9]&#x27; -or $Step.EndsWith(&#x27;.&#x27;) -or $Step -match $reserved) {
+  Stop-Snapshot (&quot;step name &#x27;$Step&#x27; must use letters, digits, dots, dashes and underscores, contain a letter or &quot; +
+                 &quot;digit, not end with a dot, and not be a reserved Windows name such as CON or NUL (for example 01-menu).&quot;) 2
 }
 
 $app   = Join-Path $env:LOCALAPPDATA &#x27;Starfield&#x27;
@@ -357,25 +377,19 @@ $files = @(
 $plugins = $files[0]
 $marker  = &#x27;# PluginsTxtSnapshot marker - safe to delete&#x27;
 $out     = Join-Path $OutDir $Step
-$log     = Join-Path $OutDir &#x27;snapshot.log&#x27;
 
 try {
   New-Item -ItemType Directory -Force $out | Out-Null
 } catch {
-  [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: could not create $out ($($_.Exception.Message)). Pick another folder with -OutDir.&quot;)
-  exit 1
+  Stop-Snapshot &quot;could not create $out ($($_.Exception.Message)). Pick another folder with -OutDir.&quot; 1
 }
 
-function Write-Log([string]$Text) {
-  Write-Verbose $Text
-  if ($VerbosePreference -ne &#x27;SilentlyContinue&#x27;) {
-    Add-Content -Path $log -Value &quot;$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text&quot;
-  }
-}
-
-function Test-Marker {
-  if (-not (Test-Path $plugins)) { return $false }
-  return [bool]((Get-Content $plugins) | Where-Object { $_.Trim() -eq $marker })
+function Test-Marker([string]$Path) {
+  # True, False, or &#x27;unknown&#x27; when the file can&#x27;t be read.
+  try {
+    if (-not (Test-Path $Path)) { return $false }
+    return [bool]((Get-Content $Path) | Where-Object { $_.Trim() -eq $marker })
+  } catch { return &#x27;unknown&#x27; }
 }
 
 Write-Log &quot;Output folder: $out&quot;
@@ -383,23 +397,27 @@ Write-Log &quot;Reading Plugins.txt and ContentCatalog.txt from $app; StarfieldC
 
 if ($AddMarker) {
   if (-not (Test-Path $plugins)) {
-    [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again.&quot;)
-    exit 1
+    Stop-Snapshot &quot;no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again.&quot; 1
   }
   $backup = Join-Path $OutDir &#x27;Plugins.txt.backup&#x27;
+  $hasMarker = Test-Marker $plugins
+  if ($hasMarker -is [string]) {   # &#x27;unknown&#x27; (a plain -eq would also match $true)
+    Stop-Snapshot &quot;could not read $plugins. Close the game and your mod manager, then try again.&quot; 1
+  }
   try {
-    if (Test-Path $backup) {
-      Write-Host &quot;Kept the existing backup at $backup (it is not overwritten).&quot;
-      Write-Log &quot;Backup already exists; not overwritten&quot;
+    if ($hasMarker) {
+      Write-Host &quot;The marker line is already in Plugins.txt, so this test is still running: kept the backup and the marker.&quot;
+      Write-Log &quot;Marker already present; backup and marker kept&quot;
     } else {
+      if (Test-Path $backup) {
+        $old = Join-Path $OutDir (&quot;Plugins.txt.backup-&quot; + (Get-Item $backup).LastWriteTime.ToString(&#x27;yyyyMMdd-HHmmss&#x27;, $inv))
+        Move-Item $backup $old -Force
+        Write-Host &quot;Renamed the backup from an earlier test to $old.&quot;
+        Write-Log &quot;Earlier backup renamed to $old&quot;
+      }
       Copy-Item $plugins $backup
       Write-Host &quot;Backed up Plugins.txt to $backup.&quot;
       Write-Log &quot;Backup written to $backup&quot;
-    }
-    if (Test-Marker) {
-      Write-Host &quot;The marker line is already in Plugins.txt; not adding it again.&quot;
-      Write-Log &quot;Marker already present&quot;
-    } else {
       # Start the marker on its own line even when the file doesn&#x27;t end with a line break.
       $bytes = [IO.File]::ReadAllBytes($plugins)
       $prefix = if ($bytes.Length -gt 0 -and $bytes[-1] -ne 10) { &quot;`r`n&quot; } else { &#x27;&#x27; }
@@ -408,8 +426,7 @@ if ($AddMarker) {
       Write-Log &quot;Marker added&quot;
     }
   } catch {
-    [Console]::Error.WriteLine(&quot;PluginsTxtSnapshot: could not back up or mark $plugins ($($_.Exception.Message)). Close the game and your mod manager, then try again.&quot;)
-    exit 1
+    Stop-Snapshot &quot;could not back up or mark $plugins ($($_.Exception.Message)). Close the game and your mod manager, then try again.&quot; 1
   }
 }
 
@@ -423,13 +440,17 @@ $info = @(
 )
 foreach ($f in $files) {
   $name = Split-Path $f -Leaf
+  $copy = Join-Path $out $name
+  # Remove a copy left by an earlier run of this step, so a failed read never leaves stale text behind.
+  if (Test-Path $copy) { Remove-Item $copy -Force -ErrorAction SilentlyContinue }
   if (Test-Path $f) {
     try {
       $i = Get-Item $f
       Copy-Item $f $out -Force
-      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash $f).Hash)&quot;
+      $line = &quot;${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash $copy).Hash)&quot;
       Write-Log &quot;Copied $f&quot;
     } catch {
+      if (Test-Path $copy) { Remove-Item $copy -Force -ErrorAction SilentlyContinue }
       $line = &quot;${name}: could not read ($($_.Exception.Message)); take this step&#x27;s snapshot again&quot;
       Write-Log &quot;Could not read ${f}: $($_.Exception.Message)&quot;
     }
@@ -439,9 +460,7 @@ foreach ($f in $files) {
   }
   $info += $line
 }
-if (Test-Path $plugins) {
-  $info += &#x27;&#x27;, &quot;Marker line present: $(Test-Marker)&quot;
-}
+$info += &#x27;&#x27;, &quot;Marker line present: $(Test-Marker (Join-Path $out &#x27;Plugins.txt&#x27;))&quot;
 $info | Set-Content (Join-Path $out &#x27;info.txt&#x27;)
 $info | ForEach-Object { Write-Host $_ }
 Write-Host &quot;Saved to $out&quot;
@@ -469,6 +488,7 @@ import sys
 from pathlib import Path
 
 LOG = []
+MISSING = object()
 
 
 def log(msg):
@@ -528,14 +548,25 @@ def catalog_diff(pa, pb):
         return [&quot;    not the expected JSON object; compare the two files by hand&quot;]
     out = []
     for k in sorted(set(ja) | set(jb)):
-        va, vb = ja.get(k), jb.get(k)
+        va, vb = ja.get(k, MISSING), jb.get(k, MISSING)
         if va == vb:
             continue
         if isinstance(va, dict) and isinstance(vb, dict):
-            fields = [f for f in sorted(set(va) | set(vb)) if va.get(f) != vb.get(f)]
-            out.append(f&quot;    {k}: {&#x27;, &#x27;.join(fields)} changed&quot;)
+            fields = [f for f in sorted(set(va) | set(vb)) if va.get(f, MISSING) != vb.get(f, MISSING)]
+            out.append(f&quot;    {k}: {&#x27;, &#x27;.join(fields) or &#x27;entry&#x27;} changed&quot;)
         else:
-            out.append(f&quot;    {k}: {&#x27;added&#x27; if va is None else &#x27;removed&#x27; if vb is None else &#x27;changed&#x27;}&quot;)
+            out.append(f&quot;    {k}: {&#x27;added&#x27; if va is MISSING else &#x27;removed&#x27; if vb is MISSING else &#x27;changed&#x27;}&quot;)
+    return out
+
+
+def changed_lines(pa, pb):
+    &quot;&quot;&quot;The removed (-) and added (+) lines, from the diff&#x27;s change blocks only (no file headers).&quot;&quot;&quot;
+    out = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=pa, b=pb, autojunk=False).get_opcodes():
+        if tag in (&quot;delete&quot;, &quot;replace&quot;):
+            out += [&quot;-&quot; + x for x in pa[i1:i2]]
+        if tag in (&quot;insert&quot;, &quot;replace&quot;):
+            out += [&quot;+&quot; + x for x in pb[j1:j2]]
     return out
 
 
@@ -546,16 +577,24 @@ def compare(a, b):
     log(f&quot;{a.name} -&gt; {b.name}: Plugins.txt modified {ta} -&gt; {tb}&quot;)
     if pa is None or pb is None:
         print(&quot;Plugins.txt: missing from one of the steps&quot;)
+    elif ta is None or tb is None:
+        which = a.name if ta is None else b.name
+        print(f&quot;Plugins.txt: modified time unknown for {which} (see its info.txt); can&#x27;t tell whether it was rewritten&quot;)
     else:
         rewritten = ta != tb
         if pa == pb:
             print(f&quot;Plugins.txt: {&#x27;rewritten (new modified time), same text&#x27; if rewritten else &#x27;not rewritten&#x27;}&quot;)
         else:
-            kind = &quot;same lines, new order&quot; if sorted(pa) == sorted(pb) else &quot;lines added or removed&quot;
+            bare = lambda ls: sorted(x.lstrip(&quot;*&quot;) for x in ls)
+            if sorted(pa) == sorted(pb):
+                kind = &quot;same lines, new order&quot;
+            elif bare(pa) == bare(pb):
+                kind = &quot;plugins enabled or disabled&quot;
+            else:
+                kind = &quot;lines added or removed&quot;
             print(f&quot;Plugins.txt: rewritten ({kind})&quot;)
-            for d in difflib.unified_diff(pa, pb, lineterm=&quot;&quot;, n=0):
-                if d.startswith((&quot;+&quot;, &quot;-&quot;)) and not d.startswith((&quot;+++&quot;, &quot;---&quot;)):
-                    print(&quot;   &quot;, d)
+            for d in changed_lines(pa, pb):
+                print(&quot;   &quot;, d)
     ca, cb = a / &quot;ContentCatalog.txt&quot;, b / &quot;ContentCatalog.txt&quot;
     if ca.exists() and cb.exists():
         if ca.read_bytes() == cb.read_bytes():
@@ -575,22 +614,35 @@ def main(argv):
     ap.add_argument(&quot;--verbose&quot;, action=&quot;store_true&quot;, help=&quot;also write compare.log in the folder&quot;)
     args = ap.parse_args(argv)
     root = Path(args.folder)
-    if not root.is_dir():
-        print(f&quot;compare_snapshots: folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.&quot;,
-              file=sys.stderr)
+
+    def fail(msg):
+        print(f&quot;compare_snapshots: {msg}&quot;, file=sys.stderr)
+        log(f&quot;FAILED: {msg}&quot;)
+        write_log(root, args.verbose)
         return 1
+
+    if not root.is_dir():
+        return fail(f&quot;folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.&quot;)
     steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / &quot;info.txt&quot;).exists()), key=step_key)
     log(f&quot;folder {root}: steps {[s.name for s in steps]}&quot;)
     if len(steps) &lt; 2:
-        print(f&quot;compare_snapshots: {root} has {len(steps)} step folder(s); take at least two snapshots first.&quot;,
-              file=sys.stderr)
-        return 1
+        return fail(f&quot;{root} has {len(steps)} step folder(s) with info.txt; take at least two snapshots first.&quot;)
     for a, b in zip(steps, steps[1:]):
         compare(a, b)
-    if args.verbose:
-        (root / &quot;compare.log&quot;).write_text(&quot;\n&quot;.join(LOG) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
-        print(f&quot;log: {root / &#x27;compare.log&#x27;}&quot;)
+    write_log(root, args.verbose)
     return 0
+
+
+def write_log(root, verbose):
+    &quot;&quot;&quot;With --verbose, write compare.log in the folder (or the current folder if that one is missing).&quot;&quot;&quot;
+    if not verbose:
+        return
+    target = (root if root.is_dir() else Path.cwd()) / &quot;compare.log&quot;
+    try:
+        target.write_text(&quot;\n&quot;.join(LOG) + &quot;\n&quot;, encoding=&quot;utf-8&quot;)
+        print(f&quot;log: {target}&quot;)
+    except OSError as ex:
+        print(f&quot;compare_snapshots: could not write {target} ({ex})&quot;, file=sys.stderr)
 
 
 if __name__ == &quot;__main__&quot;:

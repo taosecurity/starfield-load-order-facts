@@ -9,7 +9,9 @@
 
   -AddMarker (use it on the first step only) backs up Plugins.txt to <OutDir>\Plugins.txt.backup, then adds one
   comment line. The game ignores lines that start with #, but when it rewrites Plugins.txt it writes only its own
-  header and plugin lines, so the marker disappearing means the game rewrote the file.
+  header and plugin lines, so the marker disappearing means the game rewrote the file. If the marker is still in
+  Plugins.txt, the test is already running: the backup is kept and no second marker is added. Otherwise a new
+  test starts: an older backup in the folder is renamed with its date, and a fresh backup is made.
 
   Run it from the Windows account you play on: it reads that account's own folders.
 
@@ -28,10 +30,28 @@ param(
 $ErrorActionPreference = 'Stop'
 $inv = [Globalization.CultureInfo]::InvariantCulture
 $timeFmt = 'yyyy-MM-dd HH\:mm\:ss'   # literal colons on every regional setting (compare_snapshots.py reads them)
+$log = Join-Path $OutDir 'snapshot.log'
 
-if ($Step -notmatch '^[A-Za-z0-9._-]+$' -or $Step -notmatch '[A-Za-z0-9]') {
-  [Console]::Error.WriteLine("PluginsTxtSnapshot: step name '$Step' must use letters, digits, dots, dashes and underscores, with at least one letter or digit (for example 01-menu).")
-  exit 2
+function Write-Log([string]$Text) {
+  Write-Verbose $Text
+  if ($VerbosePreference -ne 'SilentlyContinue') {
+    try {
+      if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force $OutDir | Out-Null }
+      Add-Content -Path $log -Value "$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text"
+    } catch { Write-Verbose "Could not write ${log}: $($_.Exception.Message)" }
+  }
+}
+
+function Stop-Snapshot([string]$Text, [int]$Code) {
+  [Console]::Error.WriteLine("PluginsTxtSnapshot: $Text")
+  Write-Log "FAILED (exit $Code): $Text"
+  exit $Code
+}
+
+$reserved = '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$'
+if ($Step -notmatch '^[A-Za-z0-9._-]+$' -or $Step -notmatch '[A-Za-z0-9]' -or $Step.EndsWith('.') -or $Step -match $reserved) {
+  Stop-Snapshot ("step name '$Step' must use letters, digits, dots, dashes and underscores, contain a letter or " +
+                 "digit, not end with a dot, and not be a reserved Windows name such as CON or NUL (for example 01-menu).") 2
 }
 
 $app   = Join-Path $env:LOCALAPPDATA 'Starfield'
@@ -44,25 +64,19 @@ $files = @(
 $plugins = $files[0]
 $marker  = '# PluginsTxtSnapshot marker - safe to delete'
 $out     = Join-Path $OutDir $Step
-$log     = Join-Path $OutDir 'snapshot.log'
 
 try {
   New-Item -ItemType Directory -Force $out | Out-Null
 } catch {
-  [Console]::Error.WriteLine("PluginsTxtSnapshot: could not create $out ($($_.Exception.Message)). Pick another folder with -OutDir.")
-  exit 1
+  Stop-Snapshot "could not create $out ($($_.Exception.Message)). Pick another folder with -OutDir." 1
 }
 
-function Write-Log([string]$Text) {
-  Write-Verbose $Text
-  if ($VerbosePreference -ne 'SilentlyContinue') {
-    Add-Content -Path $log -Value "$((Get-Date).ToString($timeFmt, $inv)) [$Step] $Text"
-  }
-}
-
-function Test-Marker {
-  if (-not (Test-Path $plugins)) { return $false }
-  return [bool]((Get-Content $plugins) | Where-Object { $_.Trim() -eq $marker })
+function Test-Marker([string]$Path) {
+  # True, False, or 'unknown' when the file can't be read.
+  try {
+    if (-not (Test-Path $Path)) { return $false }
+    return [bool]((Get-Content $Path) | Where-Object { $_.Trim() -eq $marker })
+  } catch { return 'unknown' }
 }
 
 Write-Log "Output folder: $out"
@@ -70,23 +84,27 @@ Write-Log "Reading Plugins.txt and ContentCatalog.txt from $app; StarfieldCustom
 
 if ($AddMarker) {
   if (-not (Test-Path $plugins)) {
-    [Console]::Error.WriteLine("PluginsTxtSnapshot: no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again.")
-    exit 1
+    Stop-Snapshot "no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again." 1
   }
   $backup = Join-Path $OutDir 'Plugins.txt.backup'
+  $hasMarker = Test-Marker $plugins
+  if ($hasMarker -is [string]) {   # 'unknown' (a plain -eq would also match $true)
+    Stop-Snapshot "could not read $plugins. Close the game and your mod manager, then try again." 1
+  }
   try {
-    if (Test-Path $backup) {
-      Write-Host "Kept the existing backup at $backup (it is not overwritten)."
-      Write-Log "Backup already exists; not overwritten"
+    if ($hasMarker) {
+      Write-Host "The marker line is already in Plugins.txt, so this test is still running: kept the backup and the marker."
+      Write-Log "Marker already present; backup and marker kept"
     } else {
+      if (Test-Path $backup) {
+        $old = Join-Path $OutDir ("Plugins.txt.backup-" + (Get-Item $backup).LastWriteTime.ToString('yyyyMMdd-HHmmss', $inv))
+        Move-Item $backup $old -Force
+        Write-Host "Renamed the backup from an earlier test to $old."
+        Write-Log "Earlier backup renamed to $old"
+      }
       Copy-Item $plugins $backup
       Write-Host "Backed up Plugins.txt to $backup."
       Write-Log "Backup written to $backup"
-    }
-    if (Test-Marker) {
-      Write-Host "The marker line is already in Plugins.txt; not adding it again."
-      Write-Log "Marker already present"
-    } else {
       # Start the marker on its own line even when the file doesn't end with a line break.
       $bytes = [IO.File]::ReadAllBytes($plugins)
       $prefix = if ($bytes.Length -gt 0 -and $bytes[-1] -ne 10) { "`r`n" } else { '' }
@@ -95,8 +113,7 @@ if ($AddMarker) {
       Write-Log "Marker added"
     }
   } catch {
-    [Console]::Error.WriteLine("PluginsTxtSnapshot: could not back up or mark $plugins ($($_.Exception.Message)). Close the game and your mod manager, then try again.")
-    exit 1
+    Stop-Snapshot "could not back up or mark $plugins ($($_.Exception.Message)). Close the game and your mod manager, then try again." 1
   }
 }
 
@@ -110,13 +127,17 @@ $info = @(
 )
 foreach ($f in $files) {
   $name = Split-Path $f -Leaf
+  $copy = Join-Path $out $name
+  # Remove a copy left by an earlier run of this step, so a failed read never leaves stale text behind.
+  if (Test-Path $copy) { Remove-Item $copy -Force -ErrorAction SilentlyContinue }
   if (Test-Path $f) {
     try {
       $i = Get-Item $f
       Copy-Item $f $out -Force
-      $line = "${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash $f).Hash)"
+      $line = "${name}: modified $($i.LastWriteTime.ToString($timeFmt, $inv)), $($i.Length) bytes, SHA256 $((Get-FileHash $copy).Hash)"
       Write-Log "Copied $f"
     } catch {
+      if (Test-Path $copy) { Remove-Item $copy -Force -ErrorAction SilentlyContinue }
       $line = "${name}: could not read ($($_.Exception.Message)); take this step's snapshot again"
       Write-Log "Could not read ${f}: $($_.Exception.Message)"
     }
@@ -126,9 +147,7 @@ foreach ($f in $files) {
   }
   $info += $line
 }
-if (Test-Path $plugins) {
-  $info += '', "Marker line present: $(Test-Marker)"
-}
+$info += '', "Marker line present: $(Test-Marker (Join-Path $out 'Plugins.txt'))"
 $info | Set-Content (Join-Path $out 'info.txt')
 $info | ForEach-Object { Write-Host $_ }
 Write-Host "Saved to $out"

@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 LOG = []
+MISSING = object()
 
 
 def log(msg):
@@ -80,14 +81,25 @@ def catalog_diff(pa, pb):
         return ["    not the expected JSON object; compare the two files by hand"]
     out = []
     for k in sorted(set(ja) | set(jb)):
-        va, vb = ja.get(k), jb.get(k)
+        va, vb = ja.get(k, MISSING), jb.get(k, MISSING)
         if va == vb:
             continue
         if isinstance(va, dict) and isinstance(vb, dict):
-            fields = [f for f in sorted(set(va) | set(vb)) if va.get(f) != vb.get(f)]
-            out.append(f"    {k}: {', '.join(fields)} changed")
+            fields = [f for f in sorted(set(va) | set(vb)) if va.get(f, MISSING) != vb.get(f, MISSING)]
+            out.append(f"    {k}: {', '.join(fields) or 'entry'} changed")
         else:
-            out.append(f"    {k}: {'added' if va is None else 'removed' if vb is None else 'changed'}")
+            out.append(f"    {k}: {'added' if va is MISSING else 'removed' if vb is MISSING else 'changed'}")
+    return out
+
+
+def changed_lines(pa, pb):
+    """The removed (-) and added (+) lines, from the diff's change blocks only (no file headers)."""
+    out = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=pa, b=pb, autojunk=False).get_opcodes():
+        if tag in ("delete", "replace"):
+            out += ["-" + x for x in pa[i1:i2]]
+        if tag in ("insert", "replace"):
+            out += ["+" + x for x in pb[j1:j2]]
     return out
 
 
@@ -98,16 +110,24 @@ def compare(a, b):
     log(f"{a.name} -> {b.name}: Plugins.txt modified {ta} -> {tb}")
     if pa is None or pb is None:
         print("Plugins.txt: missing from one of the steps")
+    elif ta is None or tb is None:
+        which = a.name if ta is None else b.name
+        print(f"Plugins.txt: modified time unknown for {which} (see its info.txt); can't tell whether it was rewritten")
     else:
         rewritten = ta != tb
         if pa == pb:
             print(f"Plugins.txt: {'rewritten (new modified time), same text' if rewritten else 'not rewritten'}")
         else:
-            kind = "same lines, new order" if sorted(pa) == sorted(pb) else "lines added or removed"
+            bare = lambda ls: sorted(x.lstrip("*") for x in ls)
+            if sorted(pa) == sorted(pb):
+                kind = "same lines, new order"
+            elif bare(pa) == bare(pb):
+                kind = "plugins enabled or disabled"
+            else:
+                kind = "lines added or removed"
             print(f"Plugins.txt: rewritten ({kind})")
-            for d in difflib.unified_diff(pa, pb, lineterm="", n=0):
-                if d.startswith(("+", "-")) and not d.startswith(("+++", "---")):
-                    print("   ", d)
+            for d in changed_lines(pa, pb):
+                print("   ", d)
     ca, cb = a / "ContentCatalog.txt", b / "ContentCatalog.txt"
     if ca.exists() and cb.exists():
         if ca.read_bytes() == cb.read_bytes():
@@ -127,22 +147,35 @@ def main(argv):
     ap.add_argument("--verbose", action="store_true", help="also write compare.log in the folder")
     args = ap.parse_args(argv)
     root = Path(args.folder)
-    if not root.is_dir():
-        print(f"compare_snapshots: folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.",
-              file=sys.stderr)
+
+    def fail(msg):
+        print(f"compare_snapshots: {msg}", file=sys.stderr)
+        log(f"FAILED: {msg}")
+        write_log(root, args.verbose)
         return 1
+
+    if not root.is_dir():
+        return fail(f"folder not found: {root}. Pass the folder PluginsTxtSnapshot.ps1 wrote to.")
     steps = sorted((p for p in root.iterdir() if p.is_dir() and (p / "info.txt").exists()), key=step_key)
     log(f"folder {root}: steps {[s.name for s in steps]}")
     if len(steps) < 2:
-        print(f"compare_snapshots: {root} has {len(steps)} step folder(s); take at least two snapshots first.",
-              file=sys.stderr)
-        return 1
+        return fail(f"{root} has {len(steps)} step folder(s) with info.txt; take at least two snapshots first.")
     for a, b in zip(steps, steps[1:]):
         compare(a, b)
-    if args.verbose:
-        (root / "compare.log").write_text("\n".join(LOG) + "\n", encoding="utf-8")
-        print(f"log: {root / 'compare.log'}")
+    write_log(root, args.verbose)
     return 0
+
+
+def write_log(root, verbose):
+    """With --verbose, write compare.log in the folder (or the current folder if that one is missing)."""
+    if not verbose:
+        return
+    target = (root if root.is_dir() else Path.cwd()) / "compare.log"
+    try:
+        target.write_text("\n".join(LOG) + "\n", encoding="utf-8")
+        print(f"log: {target}")
+    except OSError as ex:
+        print(f"compare_snapshots: could not write {target} ({ex})", file=sys.stderr)
 
 
 if __name__ == "__main__":
