@@ -34,7 +34,7 @@ What's new: see the top of the [live page](https://taosecurity.github.io/starfie
 - A TL;DR at the top, then a verdict for each part of the claim, with the evidence.
 - Part 1, the game's code: where Starfield.exe reads Plugins.txt, the one function that rewrites it, and the two places that call that function (the Creations sync and the Creations menu).
 - Part 2, the in-game test: seven snapshots of the load-order files, a marker line that shows when the game rewrites Plugins.txt, and a control step that proves the test catches a rewrite.
-- What we got wrong along the way, the limits of the test, and what it means for your mod setup.
+- The limits of the test, and what it means for your mod setup.
 - Diagrams of what happens to Plugins.txt from launch to loading a save.
 
 ## Install the scripts
