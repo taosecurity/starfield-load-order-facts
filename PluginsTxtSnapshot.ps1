@@ -14,7 +14,9 @@
   file without the marker if it's missing). Otherwise a new test starts: the earlier test's backup and step folders
   move into <OutDir>\earlier-test-<date and time>, and a fresh backup is made.
 
-  -PluginsDir and -IniDir change where the files are read from, for example an MO2 profile folder.
+  -PluginsDir and -IniDir change where Plugins.txt and StarfieldCustom.ini are read from, for example an MO2
+  profile folder. ContentCatalog.txt is always read from %LOCALAPPDATA%\Starfield: MO2 (2.5.2 and the 2.5.3 betas)
+  keeps no copy of it in the profile.
 
   Run it from the Windows account you play on: it reads that account's own folders.
 
@@ -29,7 +31,7 @@ param(
   [Parameter(Mandatory = $true, Position = 0)][string]$Step,
   [switch]$AddMarker,
   [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'PluginsTxtTest'),
-  # Folder that holds Plugins.txt and ContentCatalog.txt. For an MO2 profile, use <MO2 folder>\profiles\<profile>.
+  # Folder that holds Plugins.txt. For an MO2 profile, use <MO2 folder>\profiles\<profile>.
   [string]$PluginsDir = (Join-Path $env:LOCALAPPDATA 'Starfield'),
   # Folder that holds StarfieldCustom.ini (MO2 profiles with their own INI files keep it in the profile folder).
   [string]$IniDir = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games\Starfield')
@@ -67,10 +69,11 @@ if ($Step -notmatch '^[A-Za-z0-9._-]+$' -or $Step -notmatch '[A-Za-z0-9]' -or $S
 
 $app   = $PluginsDir
 $docs  = $IniDir
+$catalogDir = Join-Path $env:LOCALAPPDATA 'Starfield'   # MO2 never moves ContentCatalog.txt into a profile
 $latin1 = [Text.Encoding]::GetEncoding(28591)   # maps every byte to one character and back unchanged
 $files = @(
   (Join-Path $app  'Plugins.txt'),
-  (Join-Path $app  'ContentCatalog.txt'),
+  (Join-Path $catalogDir 'ContentCatalog.txt'),
   (Join-Path $docs 'StarfieldCustom.ini')
 )
 $plugins = $files[0]
@@ -92,7 +95,7 @@ function Test-Marker([string]$Path) {
 }
 
 Write-Log "Output folder: $out"
-Write-Log "Reading Plugins.txt and ContentCatalog.txt from $app; StarfieldCustom.ini from $docs"
+Write-Log "Reading Plugins.txt from $app; ContentCatalog.txt from $catalogDir; StarfieldCustom.ini from $docs"
 
 if ($AddMarker) {
   if (-not (Test-Path -LiteralPath $plugins -PathType Leaf)) {

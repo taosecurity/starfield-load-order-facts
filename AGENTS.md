@@ -27,7 +27,7 @@ Instructions for AI assistants working with this repository.
    - `compare_snapshots.py`: 0 when it compared; 1 when the folder is missing or holds fewer than two steps (also logged with `--verbose`); 2 for wrong arguments.
 9. **Limits:**
    - The scripts never touch the game folder, saves or mod files, and never upload anything. The only change they make is `-AddMarker`, which backs up Plugins.txt and then adds one comment line to it. The page fetches nothing.
-   - Close Vortex or MO2 during a test. MO2 normally gives the game its own copy of Plugins.txt through its virtual file system. For an MO2 setup, pass the profile folder: `-PluginsDir "<MO2 folder>\profiles\<profile>"` (and `-IniDir` the same folder if the profile has its own INI files).
+   - Close Vortex or MO2 during a test. MO2 normally gives the game its own copy of Plugins.txt through its virtual file system. For an MO2 setup, pass the profile folder: `-PluginsDir "<MO2 folder>\profiles\<profile>"` (and `-IniDir` the same folder if the profile has its own INI files). `ContentCatalog.txt` is always read from `%LOCALAPPDATA%\Starfield`, because MO2 keeps no copy of it in the profile.
    - The findings are for Steam Starfield 1.16.244. Function addresses on the page change with each game version.
-   - After a test, tell the user to deploy from their mod manager again to put back its order.
+   - After a test, tell a Vortex user to deploy again to put back Vortex's order. An MO2 user needs to do nothing: MO2 never deploys, and its profile files aren't touched by a test run outside MO2.
 10. **Corrections:** open an issue at https://github.com/taosecurity/starfield-load-order-facts/issues.

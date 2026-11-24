@@ -45,9 +45,9 @@ What's new: see the top of the [live page](https://taosecurity.github.io/starfie
 2. Download `PluginsTxtSnapshot.ps1` and `compare_snapshots.py` from this repository into one folder.
 3. Open the folder in File Explorer, click the address bar, type `powershell` and press Enter. A PowerShell window opens in that folder, ready for the commands in the Example.
 
-Close Vortex or MO2 before the test, so only the game can change the files, and run the snapshot script from the Windows account you play on. Snapshots go to `PluginsTxtTest` on your Desktop unless you add `-OutDir <folder>`. Pass the same folder to `compare_snapshots.py` if you change it. Afterward, deploy from your mod manager to put back its order.
+Close Vortex or MO2 before the test, so only the game can change the files, and run the snapshot script from the Windows account you play on. Snapshots go to `PluginsTxtTest` on your Desktop unless you add `-OutDir <folder>`. Pass the same folder to `compare_snapshots.py` if you change it. Afterward, Vortex users deploy again to put back Vortex's order. MO2 users need do nothing: MO2 never deploys, and it keeps its own copy in the profile.
 
-For MO2, point the script at your profile folder, which holds MO2's own `plugins.txt`: add `-PluginsDir "<MO2 folder>\profiles\<profile>"` to each snapshot command. A new test in a folder that already holds one moves the earlier test into a dated `earlier-test-...` folder.
+For MO2, point the script at your profile folder, which holds MO2's own `plugins.txt`: add `-PluginsDir "<MO2 folder>\profiles\<profile>"` to each snapshot command. The script still reads `ContentCatalog.txt` from `%LOCALAPPDATA%\Starfield`, because MO2 (2.5.2 and the 2.5.3 betas) keeps no copy of it in the profile. A new test in a folder that already holds one moves the earlier test into a dated `earlier-test-...` folder.
 
 ## Words used here
 
