@@ -100,7 +100,7 @@ Write-Log "Reading Plugins.txt from $app; ContentCatalog.txt from $catalogDir; S
 
 if ($AddMarker) {
   if (-not (Test-Path -LiteralPath $plugins -PathType Leaf)) {
-    Stop-Snapshot "no Plugins.txt at $plugins. Start Starfield once so it creates the file, then run this again." 1
+    Stop-Snapshot "no Plugins.txt at $plugins. Start Starfield once from Steam (with MO2 closed) so the game creates the file, then run this again." 1
   }
   $backup = Join-Path $OutDir 'Plugins.txt.backup'
   $hasMarker = Test-Marker $plugins
