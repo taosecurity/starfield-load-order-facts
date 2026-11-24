@@ -45,11 +45,11 @@ What's new: see the top of the [live page](https://taosecurity.github.io/starfie
 2. Download `PluginsTxtSnapshot.ps1` and `compare_snapshots.py` from this repository into one folder.
 3. Open the folder in File Explorer, click the address bar, type `powershell` and press Enter. A PowerShell window opens in that folder, ready for the commands in the Example.
 
-Close Vortex before the test, and MO2 too unless you start the game from MO2 (see below), so only the game can change the files, and run the snapshot script from the Windows account you play on. Snapshots go to `PluginsTxtTest` on your Desktop unless you add `-OutDir <folder>`. Pass the same folder to `compare_snapshots.py` if you change it. Afterward, Vortex users deploy again to put back Vortex's order.
+Close Vortex or MO2 before the test, so only the game can change the files, and run the snapshot script from the Windows account you play on. Snapshots go to `PluginsTxtTest` on your Desktop unless you add `-OutDir <folder>`. Pass the same folder to `compare_snapshots.py` if you change it. Afterward, Vortex users deploy again to put back Vortex's order.
 
-MO2 never deploys. If you start the game from Steam with MO2 closed, keep the default folders: the game then reads `%LOCALAPPDATA%\Starfield\Plugins.txt`, and MO2's own copy in its profile isn't touched. To watch the copy MO2 gives the game instead, start the game from MO2 and add `-PluginsDir "<MO2 folder>\profiles\<profile>"` to each snapshot command. We haven't tested whether the game's rewrites reach that file.
+MO2 never deploys, and it keeps its own `plugins.txt` in its profile. MO2 users close MO2, start the game from Steam and keep the default folders. That tests the game itself, MO2's profile copy isn't touched, and there is nothing to put back afterward. We haven't tested a run started from MO2, where MO2 shows the game its profile copy and can rewrite that file itself, so a changed file there wouldn't prove the game changed it. MO2 (2.5.2 and the 2.5.3 betas) keeps no copy of `ContentCatalog.txt` in the profile; it stays in `%LOCALAPPDATA%\Starfield`.
 
-With `-AddMarker`, the marker line then goes into the profile's `plugins.txt`, so afterward, with MO2 closed, delete that line or copy `Plugins.txt.backup` back over the profile's file. The script still reads `ContentCatalog.txt` from `%LOCALAPPDATA%\Starfield` (change it with `-CatalogDir`), because MO2 (2.5.2 and the 2.5.3 betas) keeps no copy of it in the profile. A new test in a folder that already holds one moves the earlier test into a dated `earlier-test-...` folder.
+A new test in a folder that already holds one moves the earlier test into a dated `earlier-test-...` folder.
 
 ## Words used here
 

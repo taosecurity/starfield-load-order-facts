@@ -3,8 +3,8 @@
   Copy Starfield's load-order files after one test step, with times and checksums.
 
 .DESCRIPTION
-  Copies Plugins.txt and ContentCatalog.txt (from %LOCALAPPDATA%\Starfield) and StarfieldCustom.ini (from
-  Documents\My Games\Starfield) into <OutDir>\<Step>\, and writes info.txt there with each file's modified time,
+  Copies Plugins.txt and ContentCatalog.txt (by default from %LOCALAPPDATA%\Starfield) and StarfieldCustom.ini (by
+  default from Documents\My Games\Starfield) into <OutDir>\<Step>\, and writes info.txt there with each file's modified time,
   size and SHA256. It only reads those files, except with -AddMarker.
 
   -AddMarker (use it on the first step only) backs up Plugins.txt to <OutDir>\Plugins.txt.backup, then adds one
@@ -14,9 +14,9 @@
   file without the marker if it's missing). Otherwise a new test starts: the earlier test's backup and step folders
   move into <OutDir>\earlier-test-<date and time>, and a fresh backup is made.
 
-  -PluginsDir and -IniDir change where Plugins.txt and StarfieldCustom.ini are read from, for example an MO2
-  profile folder. ContentCatalog.txt is read from %LOCALAPPDATA%\Starfield even then, because MO2 (2.5.2 and the
-  2.5.3 betas) keeps no copy of it in the profile; -CatalogDir changes that folder.
+  -PluginsDir, -CatalogDir and -IniDir change where Plugins.txt, ContentCatalog.txt and StarfieldCustom.ini are
+  read from. MO2 users: close MO2 and keep the defaults. MO2 (2.5.2 and the 2.5.3 betas) never deploys, keeps its
+  own plugins.txt in its profile, and keeps no copy of ContentCatalog.txt there.
 
   Run it from the Windows account you play on: it reads that account's own folders.
 
@@ -31,11 +31,11 @@ param(
   [Parameter(Mandatory = $true, Position = 0)][string]$Step,
   [switch]$AddMarker,
   [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'PluginsTxtTest'),
-  # Folder that holds Plugins.txt. For an MO2 profile, use <MO2 folder>\profiles\<profile>.
+  # Folder that holds Plugins.txt.
   [string]$PluginsDir = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Starfield'),
-  # Folder that holds ContentCatalog.txt. It stays here even under MO2, which keeps no copy in the profile.
+  # Folder that holds ContentCatalog.txt.
   [string]$CatalogDir = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Starfield'),
-  # Folder that holds StarfieldCustom.ini (MO2 profiles with their own INI files keep it in the profile folder).
+  # Folder that holds StarfieldCustom.ini.
   [string]$IniDir = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'My Games\Starfield')
 )
 $ErrorActionPreference = 'Stop'
