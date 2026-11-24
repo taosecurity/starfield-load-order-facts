@@ -71,7 +71,6 @@ if ($Step -notmatch '^[A-Za-z0-9._-]+$' -or $Step -notmatch '[A-Za-z0-9]' -or $S
 
 $app   = $PluginsDir
 $docs  = $IniDir
-$catalogDir = $CatalogDir
 $latin1 = [Text.Encoding]::GetEncoding(28591)   # maps every byte to one character and back unchanged
 $files = @(
   (Join-Path $app  'Plugins.txt'),

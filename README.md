@@ -47,7 +47,9 @@ What's new: see the top of the [live page](https://taosecurity.github.io/starfie
 
 Close Vortex or MO2 before the test, so only the game can change the files, and run the snapshot script from the Windows account you play on. Snapshots go to `PluginsTxtTest` on your Desktop unless you add `-OutDir <folder>`. Pass the same folder to `compare_snapshots.py` if you change it. Afterward, Vortex users deploy again to put back Vortex's order.
 
-MO2 never deploys, and it keeps its own `plugins.txt` in its profile. MO2 users close MO2, start the game from Steam and keep the default folders. That tests the game itself, MO2's profile copy isn't touched, and there is nothing to put back afterward. We haven't tested a run started from MO2, where MO2 shows the game its profile copy and can rewrite that file itself, so a changed file there wouldn't prove the game changed it. MO2 (2.5.2 and the 2.5.3 betas) keeps no copy of `ContentCatalog.txt` in the profile; it stays in `%LOCALAPPDATA%\Starfield`.
+MO2 never deploys, and it keeps its own `plugins.txt` in its profile. MO2 users close MO2, start the game from Steam and keep the default folders. That tests the game itself, MO2's profile copy isn't touched, and there is nothing to put back afterward. With MO2 closed, the game doesn't see the mods in MO2's own folders, so a save may report missing content: use a throwaway character, or don't save during the test.
+
+We haven't tested a run started from MO2, where MO2 shows the game its profile copy and can rewrite that file itself, so a changed file there wouldn't prove the game changed it. MO2 (2.5.2 and the 2.5.3 betas) keeps no copy of `ContentCatalog.txt` in the profile; it stays in `%LOCALAPPDATA%\Starfield`.
 
 A new test in a folder that already holds one moves the earlier test into a dated `earlier-test-...` folder.
 
